@@ -56,18 +56,19 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed top-0 left-0 z-50 h-screen w-64 bg-sidebar border-r border-sidebar-border transition-transform duration-300 lg:translate-x-0',
+          'fixed top-0 left-0 z-50 h-screen w-64 bg-sidebar/95 backdrop-blur-xl border-r border-sidebar-border/50 transition-transform duration-300 lg:translate-x-0 shadow-xl',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center justify-between h-16 px-6 border-b border-sidebar-border">
+          <div className="flex items-center justify-between h-16 px-6 border-b border-sidebar-border/50">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center shadow-md">
+              <div className="relative w-10 h-10 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center shadow-lg">
                 <Shield className="w-5 h-5 text-primary-foreground" />
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/20 to-transparent" />
               </div>
-              <span className="font-bold text-sidebar-foreground text-lg">TurfAdmin</span>
+              <span className="font-bold text-sidebar-foreground text-lg tracking-tight">TurfAdmin</span>
             </div>
             <Button
               variant="ghost"
@@ -118,11 +119,11 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
       {/* Main content */}
       <div className="lg:pl-64">
         {/* Top bar */}
-        <header className="sticky top-0 z-30 h-16 bg-card border-b border-border flex items-center px-4 lg:px-6 backdrop-blur-sm bg-card/80">
+        <header className="sticky top-0 z-30 h-16 bg-card/80 backdrop-blur-xl border-b border-border/50 flex items-center px-4 lg:px-6 shadow-sm">
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden"
+            className="lg:hidden hover:bg-secondary/80"
             onClick={() => setSidebarOpen(true)}
           >
             <Menu className="w-5 h-5" />

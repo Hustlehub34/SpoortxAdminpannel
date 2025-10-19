@@ -13,6 +13,9 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -110,6 +113,14 @@ export default {
         "scale-in": "scale-in 0.2s ease-out",
         "slide-in-right": "slide-in-right 0.3s ease-out",
         "glow-pulse": "glow-pulse 2s ease-in-out infinite",
+      },
+      boxShadow: {
+        'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.1)',
+        'glow': '0 0 24px rgba(99, 102, 241, 0.3)',
+        'glow-lg': '0 8px 32px -8px rgba(99, 102, 241, 0.4)',
+      },
+      backdropBlur: {
+        'xs': '2px',
       },
     },
   },

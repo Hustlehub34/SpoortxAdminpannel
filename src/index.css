@@ -46,12 +46,18 @@ All colors MUST be HSL.
     --radius: 1rem;
 
     --gradient-primary: linear-gradient(135deg, hsl(245 58% 51%), hsl(280 65% 60%));
+    --gradient-secondary: linear-gradient(135deg, hsl(280 65% 60%), hsl(310 70% 65%));
+    --gradient-success: linear-gradient(135deg, hsl(142 76% 36%), hsl(160 70% 45%));
     --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(240 20% 99%));
+    --gradient-glass: linear-gradient(135deg, hsl(0 0% 100% / 0.1), hsl(0 0% 100% / 0.05));
     --shadow-sm: 0 2px 8px -2px hsl(240 10% 10% / 0.08);
     --shadow-md: 0 4px 16px -4px hsl(240 10% 10% / 0.12);
     --shadow-lg: 0 8px 32px -8px hsl(240 10% 10% / 0.16);
+    --shadow-xl: 0 12px 48px -12px hsl(240 10% 10% / 0.2);
     --shadow-glow: 0 0 24px hsl(245 70% 65% / 0.3);
+    --shadow-glow-lg: 0 8px 32px -8px hsl(245 70% 65% / 0.4);
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
 
     --sidebar-background: 245 25% 15%;
     --sidebar-foreground: 240 10% 95%;
