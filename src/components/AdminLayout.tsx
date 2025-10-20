@@ -14,6 +14,8 @@ import {
   X,
   Shield,
   FileText,
+  PartyPopper,
+  Star,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -27,6 +29,8 @@ const navigation = [
   { name: 'Turf Owners', href: '/turf-owners', icon: Users },
   { name: 'Turfs', href: '/turfs', icon: MapPin },
   { name: 'Bookings', href: '/bookings', icon: Calendar },
+  { name: 'Events', href: '/events', icon: PartyPopper },
+  { name: 'Featured Turfs', href: '/featured-turfs', icon: Star },
   { name: 'Users', href: '/users', icon: Shield },
   { name: 'Analytics', href: '/analytics', icon: DollarSign },
   { name: 'Notifications', href: '/notifications', icon: Bell },

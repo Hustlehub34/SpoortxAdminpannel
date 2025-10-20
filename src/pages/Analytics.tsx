@@ -1,35 +1,50 @@
 import AdminLayout from '@/components/AdminLayout';
+import PhotoCarousel from '@/components/PhotoCarousel';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { mockBookings, mockTurfs } from '@/lib/mockData';
-import { TrendingUp, Download, Calendar, DollarSign, Users, MapPin } from 'lucide-react';
-import { useState } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { mockTurfs, mockTurfOwners, mockBookings } from '@/lib/mockData';
+import { MapPin, TrendingUp, DollarSign, Calendar, Download } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Analytics = () => {
-  const [dateRange, setDateRange] = useState('30d');
-
-  const totalRevenue = mockBookings.reduce((sum, b) => sum + b.amount, 0);
-  const totalBookings = mockBookings.length;
-  const activeTurfs = mockTurfs.filter((t) => t.status === 'active').length;
-  const avgBookingValue = totalRevenue / totalBookings;
-
-  const handleExport = (format: 'csv' | 'pdf') => {
-    toast.success(`Exporting report as ${format.toUpperCase()}...`);
+  // Calculate 7-day metrics for each turf
+  const getTurf7DayMetrics = (turfId: string) => {
+    const turfBookings = mockBookings.filter((b) => b.turfId === turfId);
+    const totalBookings = turfBookings.length;
+    const totalRevenue = turfBookings.reduce((sum, b) => sum + b.amount, 0);
+    
+    // Mock settlement amount (80% of revenue after platform fee)
+    const settlementAmount = totalRevenue * 0.8;
+    
+    return {
+      totalBookings,
+      totalRevenue,
+      settlementAmount,
+    };
   };
 
-  const chartData = [
-    { date: 'Mon', bookings: 12, revenue: 18000 },
-    { date: 'Tue', bookings: 15, revenue: 22500 },
-    { date: 'Wed', bookings: 18, revenue: 27000 },
-    { date: 'Thu', bookings: 14, revenue: 21000 },
-    { date: 'Fri', bookings: 22, revenue: 33000 },
-    { date: 'Sat', bookings: 28, revenue: 42000 },
-    { date: 'Sun', bookings: 25, revenue: 37500 },
-  ];
+  const getOwnerName = (ownerId: string) => {
+    const owner = mockTurfOwners.find((o) => o.id === ownerId);
+    return owner?.name || 'Unknown';
+  };
 
-  const maxRevenue = Math.max(...chartData.map((d) => d.revenue));
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active':
+        return 'bg-success/10 text-success border-success/20';
+      case 'pending':
+        return 'bg-warning/10 text-warning border-warning/20';
+      case 'inactive':
+        return 'bg-muted text-muted-foreground border-border';
+      default:
+        return 'bg-muted text-muted-foreground';
+    }
+  };
+
+  const handleExport = (format: 'csv' | 'pdf') => {
+    toast.success(`Exporting 7-day analytics as ${format.toUpperCase()}...`);
+  };
 
   return (
     <AdminLayout>
@@ -37,21 +52,10 @@ const Analytics = () => {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">Analytics & Reports</h1>
-            <p className="text-muted-foreground">Track performance and generate insights</p>
+            <h1 className="text-3xl font-bold text-foreground mb-2">7-Day Analytics</h1>
+            <p className="text-muted-foreground">Track bookings and settlements for each turf (Last 7 Days)</p>
           </div>
           <div className="flex gap-2">
-            <Select value={dateRange} onValueChange={setDateRange}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="7d">Last 7 days</SelectItem>
-                <SelectItem value="30d">Last 30 days</SelectItem>
-                <SelectItem value="90d">Last 90 days</SelectItem>
-                <SelectItem value="custom">Custom Range</SelectItem>
-              </SelectContent>
-            </Select>
             <Button variant="outline" onClick={() => handleExport('csv')} className="gap-2">
               <Download className="w-4 h-4" />
               Export CSV
@@ -63,134 +67,93 @@ const Analytics = () => {
           </div>
         </div>
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="p-6 bg-gradient-to-br from-card to-secondary/30">
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-white" />
-              </div>
-              <TrendingUp className="w-5 h-5 text-success" />
-            </div>
-            <p className="text-sm text-muted-foreground mb-1">Total Bookings</p>
-            <p className="text-3xl font-bold text-foreground">{totalBookings}</p>
-            <p className="text-xs text-success mt-1">+12% vs last period</p>
-          </Card>
+        {/* Turfs Analytics Grid */}
+        <div className="space-y-6">
+          {mockTurfs.map((turf) => {
+            const metrics = getTurf7DayMetrics(turf.id);
+            
+            return (
+              <Card
+                key={turf.id}
+                className="overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-gradient-to-br from-card to-card/50"
+              >
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-6">
+                  {/* Photo Carousel - Left */}
+                  <div className="lg:col-span-4">
+                    <PhotoCarousel images={turf.images} alt={turf.name} />
+                  </div>
 
-          <Card className="p-6 bg-gradient-to-br from-card to-secondary/30">
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-success to-emerald-400 flex items-center justify-center">
-                <DollarSign className="w-5 h-5 text-white" />
-              </div>
-              <TrendingUp className="w-5 h-5 text-success" />
-            </div>
-            <p className="text-sm text-muted-foreground mb-1">Total Revenue</p>
-            <p className="text-3xl font-bold text-foreground">₹{(totalRevenue / 1000).toFixed(1)}K</p>
-            <p className="text-xs text-success mt-1">+8% vs last period</p>
-          </Card>
+                  {/* Turf Details - Middle */}
+                  <div className="lg:col-span-4 space-y-4">
+                    <div>
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <h3 className="text-xl font-bold text-foreground">{turf.name}</h3>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                            <MapPin className="w-4 h-4" />
+                            <span>{turf.city}</span>
+                          </div>
+                        </div>
+                        <Badge className={getStatusColor(turf.status)}>{turf.status}</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{turf.address}</p>
+                    </div>
 
-          <Card className="p-6 bg-gradient-to-br from-card to-secondary/30">
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-accent to-purple-400 flex items-center justify-center">
-                <MapPin className="w-5 h-5 text-white" />
-              </div>
-              <TrendingUp className="w-5 h-5 text-success" />
-            </div>
-            <p className="text-sm text-muted-foreground mb-1">Active Turfs</p>
-            <p className="text-3xl font-bold text-foreground">{activeTurfs}</p>
-            <p className="text-xs text-success mt-1">+2 new this month</p>
-          </Card>
+                    {/* Sports Tags */}
+                    <div className="flex flex-wrap gap-2">
+                      {turf.sports.map((sport) => (
+                        <Badge key={sport} variant="outline" className="bg-secondary/50">
+                          {sport}
+                        </Badge>
+                      ))}
+                    </div>
 
-          <Card className="p-6 bg-gradient-to-br from-card to-secondary/30">
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-warning to-yellow-400 flex items-center justify-center">
-                <Users className="w-5 h-5 text-white" />
-              </div>
-              <TrendingUp className="w-5 h-5 text-success" />
-            </div>
-            <p className="text-sm text-muted-foreground mb-1">Avg Booking Value</p>
-            <p className="text-3xl font-bold text-foreground">₹{avgBookingValue.toFixed(0)}</p>
-            <p className="text-xs text-success mt-1">+5% vs last period</p>
-          </Card>
+                    {/* Owner Info */}
+                    <div className="p-4 bg-gradient-to-br from-secondary/50 to-secondary/20 rounded-xl border border-border/50">
+                      <p className="text-xs text-muted-foreground mb-1">Owner</p>
+                      <p className="font-semibold">{getOwnerName(turf.ownerId)}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{turf.ownerId}</p>
+                    </div>
+                  </div>
+
+                  {/* 7-Day Metrics - Right */}
+                  <div className="lg:col-span-4 space-y-3">
+                    <div className="p-5 bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl border border-primary/20 shadow-sm hover:shadow-md transition-shadow">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Calendar className="w-5 h-5 text-primary" />
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Bookings (7d)</p>
+                      </div>
+                      <p className="text-3xl font-bold text-foreground mb-1">{metrics.totalBookings}</p>
+                      <p className="text-xs text-muted-foreground">Last 7 days</p>
+                    </div>
+
+                    <div className="p-5 bg-gradient-to-br from-success/10 to-success/5 rounded-xl border border-success/20 shadow-sm hover:shadow-md transition-shadow">
+                      <div className="flex items-center gap-2 mb-3">
+                        <TrendingUp className="w-5 h-5 text-success" />
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Revenue (7d)</p>
+                      </div>
+                      <p className="text-3xl font-bold text-foreground mb-1">
+                        ₹{(metrics.totalRevenue / 1000).toFixed(1)}K
+                      </p>
+                      <p className="text-xs text-muted-foreground">Gross earnings</p>
+                    </div>
+
+                    <div className="p-5 bg-gradient-to-br from-warning/10 to-warning/5 rounded-xl border border-warning/20 shadow-sm hover:shadow-md transition-shadow">
+                      <div className="flex items-center gap-2 mb-3">
+                        <DollarSign className="w-5 h-5 text-warning" />
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Settlement Amount (7d)</p>
+                      </div>
+                      <p className="text-3xl font-bold text-foreground mb-1">
+                        ₹{(metrics.settlementAmount / 1000).toFixed(1)}K
+                      </p>
+                      <p className="text-xs text-success">After 20% platform fee</p>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
         </div>
-
-        {/* Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Revenue Chart */}
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-6">Revenue Trend</h3>
-            <div className="space-y-3">
-              {chartData.map((day, index) => (
-                <div key={day.date} className="space-y-2" style={{ animationDelay: `${index * 50}ms` }}>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{day.date}</span>
-                    <span className="text-success font-semibold">₹{(day.revenue / 1000).toFixed(1)}K</span>
-                  </div>
-                  <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-success to-emerald-400 rounded-full transition-all duration-500 animate-scale-in"
-                      style={{
-                        width: `${(day.revenue / maxRevenue) * 100}%`,
-                        animationDelay: `${index * 100}ms`,
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          {/* Bookings Chart */}
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-6">Booking Trend</h3>
-            <div className="space-y-3">
-              {chartData.map((day, index) => (
-                <div key={day.date} className="space-y-2" style={{ animationDelay: `${index * 50}ms` }}>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{day.date}</span>
-                    <span className="text-primary font-semibold">{day.bookings} bookings</span>
-                  </div>
-                  <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-primary to-primary-glow rounded-full transition-all duration-500 animate-scale-in"
-                      style={{
-                        width: `${(day.bookings / Math.max(...chartData.map((d) => d.bookings))) * 100}%`,
-                        animationDelay: `${index * 100}ms`,
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-
-        {/* Top Performing Turfs */}
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Top Performing Turfs</h3>
-          <div className="space-y-3">
-            {mockTurfs
-              .sort((a, b) => b.revenue30d - a.revenue30d)
-              .map((turf, index) => (
-                <div
-                  key={turf.id}
-                  className="flex items-center gap-4 p-4 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
-                >
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold">
-                    {index + 1}
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-semibold">{turf.name}</p>
-                    <p className="text-sm text-muted-foreground">{turf.city}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-success">₹{(turf.revenue30d / 1000).toFixed(1)}K</p>
-                    <p className="text-sm text-muted-foreground">{turf.totalBookings30d} bookings</p>
-                  </div>
-                </div>
-              ))}
-          </div>
-        </Card>
       </div>
     </AdminLayout>
   );

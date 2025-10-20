@@ -4,17 +4,59 @@ import PhotoCarousel from '@/components/PhotoCarousel';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { mockTurfs, mockTurfOwners, Turf, addAuditLog } from '@/lib/mockData';
-import { Edit, CheckCircle, XCircle, Key, MapPin, TrendingUp, DollarSign, Calendar } from 'lucide-react';
+import { Edit, CheckCircle, XCircle, Key, MapPin, TrendingUp, DollarSign, Calendar, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Turfs = () => {
   const [turfs, setTurfs] = useState<Turf[]>(mockTurfs);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [newTurfData, setNewTurfData] = useState({
+    name: '',
+    city: '',
+    address: '',
+    ownerId: '',
+    sports: [] as string[],
+  });
 
   const updateTurfStatus = (turfId: string, status: Turf['status']) => {
     setTurfs(turfs.map((t) => (t.id === turfId ? { ...t, status } : t)));
     addAuditLog('Update Turf Status', `Changed turf ${turfId} status to ${status}`);
     toast.success(`Turf status updated to ${status}`);
+  };
+
+  const handleAddTurf = () => {
+    if (!newTurfData.name || !newTurfData.city || !newTurfData.ownerId) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+    
+    const newTurf: Turf = {
+      id: `turf_${Date.now()}`,
+      name: newTurfData.name,
+      ownerId: newTurfData.ownerId,
+      city: newTurfData.city,
+      address: newTurfData.address,
+      sports: newTurfData.sports.length > 0 ? newTurfData.sports : ['Football'],
+      images: ['/placeholder.svg'],
+      status: 'pending',
+      totalBookings30d: 0,
+      revenue30d: 0,
+      pendingSettlements: 0,
+      pricing: [{ sport: 'Football', pricePerHour: 1500 }],
+      availableSlots: ['06:00-08:00', '08:00-10:00', '10:00-12:00', '18:00-20:00', '20:00-22:00'],
+      cancellationPolicy: 'Free cancellation up to 24 hours before booking',
+    };
+
+    setTurfs([newTurf, ...turfs]);
+    addAuditLog('Add New Turf', `Created turf: ${newTurf.name}`);
+    toast.success('New turf added successfully');
+    setDialogOpen(false);
+    setNewTurfData({ name: '', city: '', address: '', ownerId: '', sports: [] });
   };
 
   const getOwnerName = (ownerId: string) => {
@@ -44,6 +86,77 @@ const Turfs = () => {
             <h1 className="text-3xl font-bold text-foreground mb-2">Turf Management</h1>
             <p className="text-muted-foreground">View and manage all turfs in the system</p>
           </div>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2 shadow-lg hover:shadow-xl transition-all">
+                <Plus className="w-4 h-4" />
+                Add New Turf
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Add New Turf</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Turf Name *</Label>
+                  <Input
+                    id="name"
+                    value={newTurfData.name}
+                    onChange={(e) => setNewTurfData({ ...newTurfData, name: e.target.value })}
+                    placeholder="Enter turf name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="owner">Owner *</Label>
+                  <Select
+                    value={newTurfData.ownerId}
+                    onValueChange={(value) => setNewTurfData({ ...newTurfData, ownerId: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select owner" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {mockTurfOwners.map((owner) => (
+                        <SelectItem key={owner.id} value={owner.id}>
+                          {owner.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="city">City *</Label>
+                  <Input
+                    id="city"
+                    value={newTurfData.city}
+                    onChange={(e) => setNewTurfData({ ...newTurfData, city: e.target.value })}
+                    placeholder="Enter city"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="address">Address</Label>
+                  <Input
+                    id="address"
+                    value={newTurfData.address}
+                    onChange={(e) => setNewTurfData({ ...newTurfData, address: e.target.value })}
+                    placeholder="Enter full address"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sports">Sports (comma separated)</Label>
+                  <Input
+                    id="sports"
+                    placeholder="e.g. Football, Cricket, Basketball"
+                    onChange={(e) => setNewTurfData({ ...newTurfData, sports: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                  />
+                </div>
+                <Button onClick={handleAddTurf} className="w-full">
+                  Add Turf
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Turfs Grid */}
