@@ -105,105 +105,10 @@ const Users = () => {
                   <p className="text-xs text-muted-foreground mb-1">Total Bookings</p>
                   <p className="font-bold text-foreground">{user.totalBookings}</p>
                 </div>
-                <div className="text-center p-3 bg-secondary/50 rounded-lg">
-                  <p className="text-xs text-muted-foreground mb-1">Total Spent</p>
-                  <div className="flex items-center justify-center gap-1">
-                    <DollarSign className="w-3 h-3 text-success" />
-                    <p className="font-bold text-foreground">{(user.totalSpent / 1000).toFixed(1)}K</p>
-                  </div>
-                </div>
+
               </div>
 
-              {user.status === 'active' && (
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => updateUserStatus(user.id, 'suspended')}
-                  >
-                    Suspend
-                  </Button>
-                  <Dialog open={blockDialog && selectedUser?.id === user.id} onOpenChange={setBlockDialog}>
-                    <DialogTrigger asChild>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1 hover:bg-destructive/10 hover:text-destructive"
-                        onClick={() => setSelectedUser(user)}
-                      >
-                        <UserX className="w-4 h-4 mr-1" />
-                        Block
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Block User</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4 py-4">
-                        <div className="p-4 bg-muted rounded-lg">
-                          <p className="font-medium">{user.name}</p>
-                          <p className="text-sm text-muted-foreground">{user.email}</p>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="reason">Reason for blocking</Label>
-                          <Textarea
-                            id="reason"
-                            placeholder="Enter reason..."
-                            value={blockReason}
-                            onChange={(e) => setBlockReason(e.target.value)}
-                            rows={4}
-                          />
-                        </div>
-                        <Button
-                          className="w-full"
-                          onClick={() => updateUserStatus(user.id, 'blocked', blockReason)}
-                          disabled={!blockReason.trim()}
-                        >
-                          Confirm Block
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              )}
 
-              {user.status === 'suspended' && (
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => updateUserStatus(user.id, 'active')}
-                  >
-                    Reactivate
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1 hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => {
-                      setSelectedUser(user);
-                      setBlockDialog(true);
-                    }}
-                  >
-                    <UserX className="w-4 h-4 mr-1" />
-                    Block
-                  </Button>
-                </div>
-              )}
-
-              {user.status === 'blocked' && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => updateUserStatus(user.id, 'active')}
-                >
-                  <Shield className="w-4 h-4 mr-1" />
-                  Unblock User
-                </Button>
-              )}
             </Card>
           ))}
         </div>
