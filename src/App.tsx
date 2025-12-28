@@ -14,6 +14,7 @@ import Users from "./pages/Users";
 import Analytics from "./pages/Analytics";
 import Notifications from "./pages/Notifications";
 import AuditLog from "./pages/AuditLog";
+import EnquiryTurfOwner from "./pages/EnquiryTurfOwner";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -42,6 +43,7 @@ const App = () => (
           <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
           <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
           <Route path="/audit-log" element={<ProtectedRoute><AuditLog /></ProtectedRoute>} />
+          <Route path="/enquiry-turf-owner" element={<ProtectedRoute><EnquiryTurfOwner /></ProtectedRoute>} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

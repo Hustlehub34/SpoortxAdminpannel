@@ -16,6 +16,7 @@ export interface TurfOwner {
 export interface Turf {
   id: string;
   ownerId: string;
+  ownerName?: string; // Added ownerName from API
   name: string;
   city: string;
   address: string;

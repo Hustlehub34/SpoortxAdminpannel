@@ -1,52 +1,91 @@
+import { useState, useEffect } from 'react';
 import AdminLayout from '@/components/AdminLayout';
 import { Card } from '@/components/ui/card';
-import { Users, MapPin, Calendar, DollarSign, TrendingUp, TrendingDown, ArrowUpRight, Sparkles } from 'lucide-react';
-import { mockTurfs, mockBookings, mockTurfOwners } from '@/lib/mockData';
+import { Users, MapPin, Calendar, DollarSign, TrendingUp, TrendingDown, ArrowUpRight, Sparkles, Loader2, Wallet } from 'lucide-react';
+import { turfService, DashboardData } from '@/services/turfService';
+import { toast } from 'sonner';
+import { format, parseISO } from 'date-fns';
 
 const Dashboard = () => {
-  const totalRevenue = mockBookings.reduce((sum, b) => sum + b.amount, 0);
-  const activeBookings = mockBookings.filter((b) => b.status === 'confirmed').length;
-  const activeTurfs = mockTurfs.filter((t) => t.status === 'active').length;
-  const pendingSettlements = mockTurfOwners.reduce((sum, o) => sum + o.pendingSettlements, 0);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const stats = [
-    {
-      name: 'Today\'s Bookings',
-      value: activeBookings.toString(),
-      change: '+12%',
-      trend: 'up',
-      icon: Calendar,
-      color: 'from-indigo-500 to-purple-600',
-      glowColor: 'rgba(99, 102, 241, 0.3)',
-    },
-    {
-      name: 'Revenue Today',
-      value: `₹${(totalRevenue / 1000).toFixed(1)}K`,
-      change: '+8%',
-      trend: 'up',
-      icon: DollarSign,
-      color: 'from-emerald-500 to-teal-600',
-      glowColor: 'rgba(16, 185, 129, 0.3)',
-    },
-    {
-      name: 'Active Turfs',
-      value: activeTurfs.toString(),
-      change: '+3',
-      trend: 'up',
-      icon: MapPin,
-      color: 'from-violet-500 to-purple-600',
-      glowColor: 'rgba(139, 92, 246, 0.3)',
-    },
-    {
-      name: 'Pending Settlements',
-      value: `₹${(pendingSettlements / 1000).toFixed(1)}K`,
-      change: '-5%',
-      trend: 'down',
-      icon: Users,
-      color: 'from-amber-500 to-orange-600',
-      glowColor: 'rgba(245, 158, 11, 0.3)',
-    },
-  ];
+  // Static total revenue (can be updated later)
+  const totalRevenue = 150000;
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setIsLoading(true);
+      const data = await turfService.getDashboardData();
+      setDashboardData(data);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      toast.error('Failed to load dashboard data. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const formatCurrency = (value: number) => {
+    if (value >= 1000) {
+      return `₹${(value / 1000).toFixed(1)}K`;
+    }
+    return `₹${value.toFixed(0)}`;
+  };
+
+  const stats = dashboardData
+    ? [
+        {
+          name: 'Today\'s Bookings',
+          value: dashboardData.todaysBookings.value.toString(),
+          change: `${dashboardData.todaysBookings.percentageChange >= 0 ? '+' : ''}${dashboardData.todaysBookings.percentageChange}%`,
+          trend: dashboardData.todaysBookings.percentageChange >= 0 ? 'up' : 'down',
+          icon: Calendar,
+          color: 'from-indigo-500 to-purple-600',
+          glowColor: 'rgba(99, 102, 241, 0.3)',
+        },
+        {
+          name: 'Revenue Today',
+          value: formatCurrency(dashboardData.revenueToday.value),
+          change: `${dashboardData.revenueToday.percentageChange >= 0 ? '+' : ''}${dashboardData.revenueToday.percentageChange}%`,
+          trend: dashboardData.revenueToday.percentageChange >= 0 ? 'up' : 'down',
+          icon: DollarSign,
+          color: 'from-emerald-500 to-teal-600',
+          glowColor: 'rgba(16, 185, 129, 0.3)',
+        },
+        {
+          name: 'Active Turfs',
+          value: dashboardData.activeTurfs.value.toString(),
+          change: `${dashboardData.activeTurfs.percentageChange >= 0 ? '+' : ''}${dashboardData.activeTurfs.percentageChange}%`,
+          trend: dashboardData.activeTurfs.percentageChange >= 0 ? 'up' : 'down',
+          icon: MapPin,
+          color: 'from-violet-500 to-purple-600',
+          glowColor: 'rgba(139, 92, 246, 0.3)',
+        },
+        {
+          name: 'Pending Settlements',
+          value: formatCurrency(dashboardData.pendingSettlements.value),
+          change: `${dashboardData.pendingSettlements.percentageChange >= 0 ? '+' : ''}${dashboardData.pendingSettlements.percentageChange}%`,
+          trend: dashboardData.pendingSettlements.percentageChange >= 0 ? 'up' : 'down',
+          icon: Users,
+          color: 'from-amber-500 to-orange-600',
+          glowColor: 'rgba(245, 158, 11, 0.3)',
+        },
+        {
+          name: 'Total Revenue',
+          value: formatCurrency(totalRevenue),
+          change: 'All time',
+          trend: 'up',
+          icon: Wallet,
+          color: 'from-blue-500 to-cyan-600',
+          glowColor: 'rgba(59, 130, 246, 0.3)',
+        },
+      ]
+    : [];
 
   return (
     <AdminLayout>
@@ -68,9 +107,18 @@ const Dashboard = () => {
           </div>
         </div>
 
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex justify-center items-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        )}
+
         {/* Enhanced Stats Grid with Glassmorphism */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {stats.map((stat, index) => (
+        {!isLoading && dashboardData && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+              {stats.map((stat, index) => (
             <div
               key={stat.name}
               className="group relative"
@@ -112,7 +160,11 @@ const Dashboard = () => {
                             {stat.change}
                           </span>
                         </div>
-                        <span className="text-xs text-muted-foreground">vs last week</span>
+                        {stat.name !== 'Total Revenue' && (
+                          <span className="text-xs text-muted-foreground">
+                            {dashboardData.todaysBookings.comparisonPeriod}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -139,28 +191,34 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="space-y-3">
-              {mockBookings.slice(0, 5).map((booking, index) => (
-                <div
-                  key={booking.id}
-                  className="group flex items-center justify-between p-4 rounded-xl bg-gradient-to-br from-secondary/50 to-secondary/30 hover:from-secondary/70 hover:to-secondary/50 transition-all duration-300 hover:shadow-md border border-transparent hover:border-border/50"
-                  style={{ animationDelay: `${index * 50}ms` }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-semibold text-sm">
-                      {booking.userName.charAt(0)}
+              {dashboardData.recentBookings.length > 0 ? (
+                dashboardData.recentBookings.map((booking, index) => (
+                  <div
+                    key={booking.bookingId}
+                    className="group flex items-center justify-between p-4 rounded-xl bg-gradient-to-br from-secondary/50 to-secondary/30 hover:from-secondary/70 hover:to-secondary/50 transition-all duration-300 hover:shadow-md border border-transparent hover:border-border/50"
+                    style={{ animationDelay: `${index * 50}ms` }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-semibold text-sm">
+                        {booking.customerInitial}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-sm text-foreground">{booking.customerName}</p>
+                        <p className="text-xs text-muted-foreground">{booking.turfName}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-semibold text-sm text-foreground">{booking.userName}</p>
-                      <p className="text-xs text-muted-foreground">{booking.turfName}</p>
+                    <div className="text-right">
+                      <p className="font-bold text-sm text-success">₹{booking.amount}</p>
+                      <p className="text-xs text-muted-foreground">{booking.timeSlot}</p>
                     </div>
+                    <ArrowUpRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold text-sm text-success">₹{booking.amount}</p>
-                    <p className="text-xs text-muted-foreground">{booking.time}</p>
-                  </div>
-                  <ArrowUpRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                ))
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>No recent bookings</p>
                 </div>
-              ))}
+              )}
             </div>
           </Card>
 
@@ -176,12 +234,10 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="space-y-3">
-              {mockTurfs
-                .sort((a, b) => b.revenue30d - a.revenue30d)
-                .slice(0, 5)
-                .map((turf, index) => (
+              {dashboardData.topPerformingTurfs.length > 0 ? (
+                dashboardData.topPerformingTurfs.map((turf, index) => (
                   <div
-                    key={turf.id}
+                    key={turf.turfId}
                     className="group flex items-center gap-4 p-4 rounded-xl bg-gradient-to-br from-secondary/50 to-secondary/30 hover:from-secondary/70 hover:to-secondary/50 transition-all duration-300 hover:shadow-md border border-transparent hover:border-border/50"
                     style={{ animationDelay: `${index * 50}ms` }}
                   >
@@ -196,21 +252,27 @@ const Dashboard = () => {
                       )}
                     </div>
                     <div className="flex-1">
-                      <p className="font-semibold text-sm text-foreground">{turf.name}</p>
-                      <p className="text-xs text-muted-foreground">{turf.city}</p>
+                      <p className="font-semibold text-sm text-foreground">{turf.turfName}</p>
+                      <p className="text-xs text-muted-foreground">{turf.totalBookings} bookings</p>
                     </div>
                     <div className="text-right">
                       <p className="font-bold text-sm bg-gradient-to-r from-success to-emerald-600 bg-clip-text text-transparent">
-                        ₹{(turf.revenue30d / 1000).toFixed(1)}K
+                        {formatCurrency(turf.totalRevenue)}
                       </p>
-                      <p className="text-xs text-muted-foreground">{turf.totalBookings30d} bookings</p>
                     </div>
                     <ArrowUpRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
-                ))}
+                ))
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>No top performing turfs data</p>
+                </div>
+              )}
             </div>
           </Card>
         </div>
+        </>
+        )}
       </div>
     </AdminLayout>
   );

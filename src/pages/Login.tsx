@@ -55,7 +55,7 @@ const Login = () => {
               
               <div className="flex items-center gap-2 mb-2">
                 <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent tracking-tight">
-                  TurfAdmin
+                  Spoortx Admin
                 </h1>
                 <Sparkles className="w-5 h-5 text-primary animate-glow-pulse" />
               </div>

@@ -1,31 +1,34 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import AdminLayout from '@/components/AdminLayout';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { mockUsers, User, addAuditLog } from '@/lib/mockData';
-import { Search, UserX, Shield, Calendar, DollarSign, Mail, Phone } from 'lucide-react';
+import { userService, User } from '@/services/userService';
+import { Search, Shield, Calendar, Mail, Phone, MapPin, Wallet, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 const Users = () => {
-  const [users, setUsers] = useState<User[]>(mockUsers);
+  const [users, setUsers] = useState<User[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [blockDialog, setBlockDialog] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [blockReason, setBlockReason] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const updateUserStatus = (userId: string, status: User['status'], reason?: string) => {
-    setUsers(users.map((u) => (u.id === userId ? { ...u, status } : u)));
-    const action = `Changed user ${userId} status to ${status}${reason ? `: ${reason}` : ''}`;
-    addAuditLog('Update User Status', action);
-    toast.success(`User ${status}`);
-    setBlockDialog(false);
-    setBlockReason('');
+  // Load users on component mount
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      setIsLoading(true);
+      const usersData = await userService.getUsers();
+      setUsers(usersData);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast.error('Failed to load users. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const getStatusColor = (status: User['status']) => {
@@ -70,55 +73,79 @@ const Users = () => {
           </div>
         </Card>
 
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex justify-center items-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        )}
+
         {/* Users Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredUsers.map((user) => (
-            <Card key={user.id} className="p-6 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <h3 className="font-semibold text-lg mb-1">{user.name}</h3>
-                  <p className="text-sm text-muted-foreground mb-2">{user.id}</p>
-                  <Badge className={getStatusColor(user.status)}>{user.status}</Badge>
-                </div>
-                <div className="w-12 h-12 bg-gradient-to-br from-primary to-accent rounded-full flex items-center justify-center text-white font-bold">
-                  {user.name.charAt(0)}
-                </div>
-              </div>
-
-              <div className="space-y-2 mb-4 text-sm">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Mail className="w-4 h-4" />
-                  <span className="text-foreground">{user.email}</span>
-                </div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Phone className="w-4 h-4" />
-                  <span className="text-foreground">{user.phone}</span>
-                </div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Calendar className="w-4 h-4" />
-                  <span>Joined {format(user.joinedAt, 'MMM dd, yyyy')}</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 mb-4 pt-4 border-t border-border">
-                <div className="text-center p-3 bg-secondary/50 rounded-lg">
-                  <p className="text-xs text-muted-foreground mb-1">Total Bookings</p>
-                  <p className="font-bold text-foreground">{user.totalBookings}</p>
+        {!isLoading && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredUsers.map((user) => (
+              <Card key={user.id} className="p-6 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-lg mb-1">{user.name}</h3>
+                    <p className="text-sm text-muted-foreground mb-2">ID: {user.id}</p>
+                    <div className="flex gap-2 flex-wrap">
+                      <Badge className={getStatusColor(user.status)}>{user.status}</Badge>
+                      {user.userType && (
+                        <Badge variant="outline">{user.userType}</Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="w-12 h-12 bg-gradient-to-br from-primary to-accent rounded-full flex items-center justify-center text-white font-bold">
+                    {user.name.charAt(0).toUpperCase()}
+                  </div>
                 </div>
 
-              </div>
+                <div className="space-y-2 mb-4 text-sm">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Mail className="w-4 h-4" />
+                    <span className="text-foreground truncate">{user.email}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Phone className="w-4 h-4" />
+                    <span className="text-foreground">{user.phone}</span>
+                  </div>
+                  {user.city && (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <MapPin className="w-4 h-4" />
+                      <span className="text-foreground">{user.city}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Calendar className="w-4 h-4" />
+                    <span>Joined {format(user.joinedAt, 'MMM dd, yyyy')}</span>
+                  </div>
+                </div>
 
+                <div className="pt-4 border-t border-border">
+                  <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Wallet className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium">Wallet Balance</span>
+                    </div>
+                    <span className="font-bold text-foreground">
+                      ₹{user.walletBalance?.toFixed(2) || '0.00'}
+                    </span>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
 
-            </Card>
-          ))}
-        </div>
-
-        {filteredUsers.length === 0 && (
+        {!isLoading && filteredUsers.length === 0 && (
           <Card className="p-12">
             <div className="text-center">
               <Shield className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-foreground mb-2">No users found</h3>
-              <p className="text-sm text-muted-foreground">Try adjusting your search criteria</p>
+              <p className="text-sm text-muted-foreground">
+                {searchQuery ? 'Try adjusting your search criteria' : 'No users available'}
+              </p>
             </div>
           </Card>
         )}

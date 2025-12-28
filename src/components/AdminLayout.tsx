@@ -34,7 +34,7 @@ const navigation = [
   { name: 'Users', href: '/users', icon: Shield },
   { name: 'Analytics', href: '/analytics', icon: DollarSign },
   { name: 'Notifications', href: '/notifications', icon: Bell },
-  { name: 'Audit Log', href: '/audit-log', icon: FileText },
+  { name: 'Enquiry Turf Owner', href: '/enquiry-turf-owner', icon: FileText },
 ];
 
 const AdminLayout = ({ children }: AdminLayoutProps) => {
@@ -72,7 +72,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
                 <Shield className="w-5 h-5 text-primary-foreground" />
                 <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/20 to-transparent" />
               </div>
-              <span className="font-bold text-sidebar-foreground text-lg tracking-tight">TurfAdmin</span>
+              <span className="font-bold text-sidebar-foreground text-lg tracking-tight">Spoortx</span>
             </div>
             <Button
               variant="ghost"

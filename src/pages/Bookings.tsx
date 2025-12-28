@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import AdminLayout from '@/components/AdminLayout';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -6,14 +6,68 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { mockBookings, Booking, addAuditLog } from '@/lib/mockData';
-import { Search, Filter, Calendar, Clock, MapPin, User, DollarSign } from 'lucide-react';
+import { Search, Filter, Calendar, Clock, MapPin, User, DollarSign, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
+import { turfService, ApiBooking } from '@/services/turfService';
 
 const Bookings = () => {
-  const [bookings, setBookings] = useState<Booking[]>(mockBookings);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+
+  // Fetch bookings on component mount
+  useEffect(() => {
+    fetchBookings();
+  }, []);
+
+  const fetchBookings = async () => {
+    try {
+      setIsLoading(true);
+      const apiBookings = await turfService.getBookings();
+
+      // Transform API data to match Booking interface
+      const transformedBookings: Booking[] = apiBookings.map((apiBooking: ApiBooking) => ({
+        id: apiBooking.bookingNumber,
+        userId: `user_${apiBooking.userId}`,
+        userName: apiBooking.userName,
+        userPhone: apiBooking.userMobile,
+        turfId: `turf_${apiBooking.turfId}`,
+        turfName: apiBooking.turfName,
+        sport: apiBooking.sportName,
+        date: parseISO(apiBooking.bookingDate),
+        time: `${apiBooking.startTime.substring(0, 5)} - ${apiBooking.endTime.substring(0, 5)}`,
+        duration: Math.round(apiBooking.durationHours * 10) / 10, // Round to 1 decimal
+        amount: apiBooking.totalAmount,
+        paymentMethod: apiBooking.paymentStatus === 'Pending' ? 'Pending' : 'Online',
+        transactionId: `TXN${apiBooking.bookingId.toString().padStart(8, '0')}`,
+        status: mapApiStatusToLocal(apiBooking.bookingStatus),
+      }));
+
+      setBookings(transformedBookings);
+    } catch (error) {
+      console.error('Error fetching bookings:', error);
+      toast.error('Failed to load bookings. Please try again.');
+      // Fall back to mock data if API fails
+      setBookings(mockBookings);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Map API status to local status format
+  const mapApiStatusToLocal = (apiStatus: string): Booking['status'] => {
+    const statusMap: Record<string, Booking['status']> = {
+      'Pending': 'confirmed',
+      'Confirmed': 'confirmed',
+      'Cancelled': 'cancelled',
+      'Completed': 'confirmed',
+      'Refunded': 'refunded',
+      'No-Show': 'no-show',
+    };
+    return statusMap[apiStatus] || 'confirmed';
+  };
 
   const updateBookingStatus = (bookingId: string, status: Booking['status']) => {
     setBookings(bookings.map((b) => (b.id === bookingId ? { ...b, status } : b)));
@@ -84,13 +138,21 @@ const Bookings = () => {
           </div>
         </Card>
 
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex justify-center items-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        )}
+
         {/* Bookings List */}
-        <div className="space-y-4">
-          {filteredBookings.map((booking) => (
-            <Card
-              key={booking.id}
-              className="p-6 hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
-            >
+        {!isLoading && (
+          <div className="space-y-4">
+            {filteredBookings.map((booking) => (
+              <Card
+                key={booking.id}
+                className="p-6 hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
+              >
               <div className="flex flex-col lg:flex-row gap-6">
                 {/* Left: Booking Info */}
                 <div className="flex-1 space-y-4">
@@ -199,9 +261,10 @@ const Bookings = () => {
               </div>
             </Card>
           ))}
-        </div>
+          </div>
+        )}
 
-        {filteredBookings.length === 0 && (
+        {!isLoading && filteredBookings.length === 0 && (
           <Card className="p-12">
             <div className="text-center">
               <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />

@@ -244,7 +244,7 @@ const TurfOwners = () => {
                     id="name"
                     value={newOwner.name}
                     onChange={(e) => setNewOwner({ ...newOwner, name: e.target.value })}
-                    placeholder="Raj Kumar"
+                    placeholder="Name"
                     required
                   />
                 </div>
@@ -255,7 +255,7 @@ const TurfOwners = () => {
                     type="email"
                     value={newOwner.email}
                     onChange={(e) => setNewOwner({ ...newOwner, email: e.target.value })}
-                    placeholder="athawalesugat17@gmail.com"
+                    placeholder="email"
                     required
                   />
                 </div>
@@ -265,7 +265,7 @@ const TurfOwners = () => {
                     id="mobile"
                     value={newOwner.mobile}
                     onChange={(e) => setNewOwner({ ...newOwner, mobile: e.target.value })}
-                    placeholder="9123456789"
+                    placeholder="contact"
                     required
                   />
                 </div>
