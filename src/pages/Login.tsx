@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { ADMIN_CREDENTIALS } from '@/lib/mockData';
 import { Shield, Sparkles, ArrowRight } from 'lucide-react';
-
+import logo from "../SPOORTX.png"
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -48,7 +48,11 @@ const Login = () => {
               <div className="relative group mb-4">
                 <div className="absolute inset-0 bg-gradient-to-br from-primary to-accent rounded-2xl blur-xl opacity-50 group-hover:opacity-70 transition-opacity" />
                 <div className="relative w-16 h-16 bg-gradient-to-br from-primary to-accent rounded-2xl flex items-center justify-center shadow-xl">
-                  <Shield className="w-8 h-8 text-primary-foreground" />
+                    <img
+    src={logo}   // put logo inside public folder
+    alt="Logo"
+    className="w-50 h-60 object-contain"
+  />
                   <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent" />
                 </div>
               </div>

@@ -6,18 +6,21 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { addAuditLog } from '@/lib/mockData';
-import { Star, MapPin, Plus, X, Trophy, Search } from 'lucide-react';
+import { Star, MapPin, Plus, X, Trophy, Search, Edit, Power } from 'lucide-react';
 import { toast } from 'sonner';
 import { turfService, ApiTurf } from '@/services/turfService';
 
 interface FeaturedTurf {
+  id?: number;
   turfId: number;
-  isPriority: number;
+  priority: number;
   fromDate: string;
   toDate: string;
+  isActive: boolean;
 }
 
 const BASE_URL = 'https://spoortx.onrender.com/api';
@@ -27,12 +30,21 @@ const FeaturedTurfs = () => {
   const [featuredTurfs, setFeaturedTurfs] = useState<FeaturedTurf[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTurf, setSelectedTurf] = useState<ApiTurf | null>(null);
+  const [editingFeatured, setEditingFeatured] = useState<FeaturedTurf | null>(null);
   const [newFeatured, setNewFeatured] = useState({
-    isPriority: '1',
+    priority: '1',
     fromDate: '',
     toDate: '',
+    isActive: true,
+  });
+  const [editForm, setEditForm] = useState({
+    priority: '1',
+    fromDate: '',
+    toDate: '',
+    isActive: true,
   });
 
   // Fetch all turfs on component mount
@@ -73,27 +85,32 @@ const FeaturedTurfs = () => {
     (turf) => !featuredTurfs.find((ft) => ft.turfId === turf.turfId)
   );
 
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('authToken');
+    return {
+      'Content-Type': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` }),
+    };
+  };
+
   const handleAddFeatured = async () => {
-    if (!selectedTurf || !newFeatured.fromDate || !newFeatured.toDate || !newFeatured.isPriority) {
+    if (!selectedTurf || !newFeatured.fromDate || !newFeatured.toDate || !newFeatured.priority) {
       toast.error('Please select a turf, priority level, and fill all date fields');
       return;
     }
 
     try {
-      const token = localStorage.getItem('authToken');
       const payload = {
         turfId: selectedTurf.turfId,
-        isPriority: parseInt(newFeatured.isPriority),
+        priority: parseInt(newFeatured.priority),
         fromDate: new Date(newFeatured.fromDate).toISOString(),
         toDate: new Date(newFeatured.toDate).toISOString(),
+        isActive: newFeatured.isActive,
       };
 
-      const response = await fetch(`${BASE_URL}/admin/turf-priorities`, {
+      const response = await fetch(`${BASE_URL}/admin/featured-turfs`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(payload),
       });
 
@@ -103,25 +120,117 @@ const FeaturedTurfs = () => {
 
       const data = await response.json();
 
-      // Add to featured list
-      setFeaturedTurfs([...featuredTurfs, payload]);
-      addAuditLog('Add Featured Turf', `Added ${selectedTurf.turfName} as featured`);
+      // Add to featured list with ID from response if available
+      const newFeaturedTurf: FeaturedTurf = {
+        ...payload,
+        id: data?.data?.id || featuredTurfs.length + 1,
+      };
+      setFeaturedTurfs([...featuredTurfs, newFeaturedTurf]);
+      addAuditLog('Add Featured Turf', `Added ${selectedTurf.turfName} as featured with priority ${payload.priority}`);
       toast.success('Turf added to featured list');
       setDialogOpen(false);
       setSelectedTurf(null);
       setSearchQuery('');
-      setNewFeatured({ isPriority: '1', fromDate: '', toDate: '' });
+      setNewFeatured({ priority: '1', fromDate: '', toDate: '', isActive: true });
     } catch (error) {
       console.error('Error adding featured turf:', error);
       toast.error('Failed to add featured turf');
     }
   };
 
+  const handleUpdateFeatured = async () => {
+    if (!editingFeatured || !editForm.fromDate || !editForm.toDate) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+
+    try {
+      const payload = {
+        turfId: editingFeatured.turfId,
+        priority: parseInt(editForm.priority),
+        fromDate: new Date(editForm.fromDate).toISOString(),
+        toDate: new Date(editForm.toDate).toISOString(),
+        isActive: editForm.isActive,
+      };
+
+      const response = await fetch(`${BASE_URL}/admin/featured-turfs/${editingFeatured.id || editingFeatured.turfId}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Update in local state
+      setFeaturedTurfs((prev) =>
+        prev.map((ft) =>
+          ft.turfId === editingFeatured.turfId
+            ? { ...ft, ...payload }
+            : ft
+        )
+      );
+
+      const turf = getTurfDetails(editingFeatured.turfId);
+      addAuditLog('Update Featured Turf', `Updated ${turf?.turfName} - Priority: ${payload.priority}, Active: ${payload.isActive}`);
+      toast.success('Featured turf updated successfully');
+      setEditDialogOpen(false);
+      setEditingFeatured(null);
+    } catch (error) {
+      console.error('Error updating featured turf:', error);
+      toast.error('Failed to update featured turf');
+    }
+  };
+
+  const handleToggleActive = async (featured: FeaturedTurf) => {
+    try {
+      const payload = {
+        turfId: featured.turfId,
+        priority: featured.priority,
+        fromDate: featured.fromDate,
+        toDate: featured.toDate,
+        isActive: !featured.isActive,
+      };
+
+      const response = await fetch(`${BASE_URL}/admin/featured-turfs/${featured.id || featured.turfId}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Update in local state
+      setFeaturedTurfs((prev) =>
+        prev.map((ft) =>
+          ft.turfId === featured.turfId
+            ? { ...ft, isActive: !ft.isActive }
+            : ft
+        )
+      );
+
+      const turf = getTurfDetails(featured.turfId);
+      toast.success(`${turf?.turfName} ${!featured.isActive ? 'activated' : 'deactivated'}`);
+    } catch (error) {
+      console.error('Error toggling featured status:', error);
+      toast.error('Failed to update status');
+    }
+  };
+
   const handleRemoveFeatured = async (turfId: number) => {
     try {
       const turf = getTurfDetails(turfId);
-      // Here you would make a DELETE request to remove priority
-      // For now, just remove from state
+
+      // Uncomment below to make DELETE request if you have that endpoint
+      // const featured = featuredTurfs.find((ft) => ft.turfId === turfId);
+      // await fetch(`${BASE_URL}/admin/featured-turfs/${featured?.id || turfId}`, {
+      //   method: 'DELETE',
+      //   headers: getAuthHeaders(),
+      // });
+
       setFeaturedTurfs(featuredTurfs.filter((ft) => ft.turfId !== turfId));
       addAuditLog('Remove Featured Turf', `Removed ${turf?.turfName} from featured list`);
       toast.success('Turf removed from featured list');
@@ -129,6 +238,17 @@ const FeaturedTurfs = () => {
       console.error('Error removing featured turf:', error);
       toast.error('Failed to remove featured turf');
     }
+  };
+
+  const handleEditClick = (featured: FeaturedTurf) => {
+    setEditingFeatured(featured);
+    setEditForm({
+      priority: featured.priority.toString(),
+      fromDate: featured.fromDate.split('T')[0],
+      toDate: featured.toDate.split('T')[0],
+      isActive: featured.isActive,
+    });
+    setEditDialogOpen(true);
   };
 
   const handleSelectTurf = (turf: ApiTurf) => {
@@ -239,8 +359,8 @@ const FeaturedTurfs = () => {
                 <div className="space-y-2">
                   <Label htmlFor="priority">Priority Level *</Label>
                   <Select
-                    value={newFeatured.isPriority}
-                    onValueChange={(value) => setNewFeatured({ ...newFeatured, isPriority: value })}
+                    value={newFeatured.priority}
+                    onValueChange={(value) => setNewFeatured({ ...newFeatured, priority: value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select priority level" />
@@ -278,6 +398,19 @@ const FeaturedTurfs = () => {
                   </div>
                 </div>
 
+                {/* Active Toggle */}
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <Label htmlFor="isActive">Active Status</Label>
+                    <p className="text-xs text-muted-foreground">Enable to show this turf as featured</p>
+                  </div>
+                  <Switch
+                    id="isActive"
+                    checked={newFeatured.isActive}
+                    onCheckedChange={(checked) => setNewFeatured({ ...newFeatured, isActive: checked })}
+                  />
+                </div>
+
                 <Button
                   onClick={handleAddFeatured}
                   className="w-full"
@@ -301,14 +434,16 @@ const FeaturedTurfs = () => {
           </Card>
         ) : (
           <div className="space-y-6">
-            {featuredTurfs.map((featured, index) => {
+            {featuredTurfs.map((featured) => {
               const turf = getTurfDetails(featured.turfId);
               if (!turf) return null;
 
               return (
                 <Card
                   key={featured.turfId}
-                  className="overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 bg-gradient-to-br from-card to-card/50 border-primary/30"
+                  className={`overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 bg-gradient-to-br from-card to-card/50 ${
+                    featured.isActive ? 'border-primary/30' : 'border-muted opacity-60'
+                  }`}
                 >
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-6">
                     {/* Photo Carousel */}
@@ -320,10 +455,15 @@ const FeaturedTurfs = () => {
                           <span className="text-muted-foreground">No images</span>
                         </div>
                       )}
-                      <div className="absolute top-4 right-4 bg-gradient-to-r from-warning to-yellow-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg flex items-center gap-1 animate-pulse">
+                      <div className={`absolute top-4 right-4 ${featured.isActive ? 'bg-gradient-to-r from-warning to-yellow-500' : 'bg-muted'} text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg flex items-center gap-1 ${featured.isActive ? 'animate-pulse' : ''}`}>
                         <Trophy className="w-3 h-3" />
-                        Priority {featured.isPriority}
+                        Priority {featured.priority}
                       </div>
+                      {!featured.isActive && (
+                        <div className="absolute top-4 left-4 bg-muted text-muted-foreground px-2 py-1 rounded text-xs">
+                          Inactive
+                        </div>
+                      )}
                     </div>
 
                     {/* Turf Details */}
@@ -333,8 +473,11 @@ const FeaturedTurfs = () => {
                           <div>
                             <div className="flex items-center gap-2 mb-1">
                               <h3 className="text-xl font-bold text-foreground">{turf.turfName}</h3>
-                              <Badge className="bg-success/20 text-success border-success/40">
-                                Priority {featured.isPriority}
+                              <Badge className={featured.isActive ? 'bg-success/20 text-success border-success/40' : 'bg-muted text-muted-foreground'}>
+                                Priority {featured.priority}
+                              </Badge>
+                              <Badge variant={featured.isActive ? 'default' : 'secondary'}>
+                                {featured.isActive ? 'Active' : 'Inactive'}
                               </Badge>
                             </div>
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -370,11 +513,17 @@ const FeaturedTurfs = () => {
                           <p className="text-xs font-medium text-muted-foreground uppercase">Featured Details</p>
                         </div>
                         <div className="text-xs text-muted-foreground space-y-2">
-                          <div>
-                            <span className="font-semibold text-foreground">Priority Level: </span>
-                            <Badge variant="outline" className="ml-1">{featured.isPriority}</Badge>
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-foreground">Priority Level:</span>
+                            <Badge variant="outline">{featured.priority}</Badge>
                           </div>
-                          <div className="pt-1 border-t">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-foreground">Status:</span>
+                            <Badge variant={featured.isActive ? 'default' : 'secondary'}>
+                              {featured.isActive ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </div>
+                          <div className="pt-2 border-t space-y-1">
                             <p>From: {new Date(featured.fromDate).toLocaleDateString()}</p>
                             <p>To: {new Date(featured.toDate).toLocaleDateString()}</p>
                           </div>
@@ -390,16 +539,33 @@ const FeaturedTurfs = () => {
                               ₹{turf.pricePerHour}
                             </span>
                           </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs">Status</span>
-                            <Badge variant={turf.isActive ? 'default' : 'secondary'} className="text-xs">
-                              {turf.isActive ? 'Active' : 'Inactive'}
-                            </Badge>
-                          </div>
                         </div>
                       </div>
 
                       <div className="space-y-2">
+                        {/* Edit Button */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full gap-2"
+                          onClick={() => handleEditClick(featured)}
+                        >
+                          <Edit className="w-4 h-4" />
+                          Edit Featured
+                        </Button>
+
+                        {/* Toggle Active Button */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className={`w-full gap-2 ${featured.isActive ? 'text-warning hover:bg-warning/10' : 'text-success hover:bg-success/10'}`}
+                          onClick={() => handleToggleActive(featured)}
+                        >
+                          <Power className="w-4 h-4" />
+                          {featured.isActive ? 'Deactivate' : 'Activate'}
+                        </Button>
+
+                        {/* Remove Button */}
                         <Button
                           variant="outline"
                           size="sm"
@@ -407,7 +573,7 @@ const FeaturedTurfs = () => {
                           onClick={() => handleRemoveFeatured(featured.turfId)}
                         >
                           <X className="w-4 h-4" />
-                          Remove from Featured
+                          Remove
                         </Button>
                       </div>
                     </div>
@@ -418,6 +584,83 @@ const FeaturedTurfs = () => {
           </div>
         )}
       </div>
+
+      {/* Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit Featured Turf</DialogTitle>
+          </DialogHeader>
+          {editingFeatured && (
+            <div className="space-y-4 py-4">
+              {/* Turf Info */}
+              <div className="p-4 bg-secondary/50 rounded-lg">
+                <p className="font-semibold">{getTurfDetails(editingFeatured.turfId)?.turfName}</p>
+                <p className="text-sm text-muted-foreground">
+                  {getTurfDetails(editingFeatured.turfId)?.city}
+                </p>
+              </div>
+
+              {/* Priority Level */}
+              <div className="space-y-2">
+                <Label>Priority Level *</Label>
+                <Select
+                  value={editForm.priority}
+                  onValueChange={(value) => setEditForm({ ...editForm, priority: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select priority level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Priority 1 (Highest)</SelectItem>
+                    <SelectItem value="2">Priority 2</SelectItem>
+                    <SelectItem value="3">Priority 3</SelectItem>
+                    <SelectItem value="4">Priority 4</SelectItem>
+                    <SelectItem value="5">Priority 5</SelectItem>
+                    <SelectItem value="6">Priority 6 (Lowest)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Date Range */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>From Date *</Label>
+                  <Input
+                    type="date"
+                    value={editForm.fromDate}
+                    onChange={(e) => setEditForm({ ...editForm, fromDate: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>To Date *</Label>
+                  <Input
+                    type="date"
+                    value={editForm.toDate}
+                    onChange={(e) => setEditForm({ ...editForm, toDate: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {/* Active Toggle */}
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div>
+                  <Label>Active Status</Label>
+                  <p className="text-xs text-muted-foreground">Enable to show this turf as featured</p>
+                </div>
+                <Switch
+                  checked={editForm.isActive}
+                  onCheckedChange={(checked) => setEditForm({ ...editForm, isActive: checked })}
+                />
+              </div>
+
+              <Button onClick={handleUpdateFeatured} className="w-full">
+                Update Featured Turf
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };

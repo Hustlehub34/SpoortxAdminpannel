@@ -1,6 +1,7 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState , } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import logo from "../SPOORTX.png"
 import {
   LayoutDashboard,
   Users,
@@ -16,25 +17,26 @@ import {
   FileText,
   PartyPopper,
   Star,
+  Image,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-
 interface AdminLayoutProps {
   children: ReactNode;
 }
 
+
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Analytics Account', href: '/analytics', icon: DollarSign },
+  { name: 'Enquiry Turf Owner', href: '/enquiry-turf-owner', icon: FileText },
   { name: 'Turf Owners', href: '/turf-owners', icon: Users },
   { name: 'Turfs', href: '/turfs', icon: MapPin },
   { name: 'Bookings', href: '/bookings', icon: Calendar },
   { name: 'Events', href: '/events', icon: PartyPopper },
   { name: 'Featured Turfs', href: '/featured-turfs', icon: Star },
   { name: 'Users', href: '/users', icon: Shield },
-  { name: 'Analytics', href: '/analytics', icon: DollarSign },
   { name: 'Notifications', href: '/notifications', icon: Bell },
-  { name: 'Enquiry Turf Owner', href: '/enquiry-turf-owner', icon: FileText },
 ];
 
 const AdminLayout = ({ children }: AdminLayoutProps) => {
@@ -69,7 +71,11 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
           <div className="flex items-center justify-between h-16 px-6 border-b border-sidebar-border/50">
             <div className="flex items-center gap-3">
               <div className="relative w-10 h-10 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center shadow-lg">
-                <Shield className="w-5 h-5 text-primary-foreground" />
+                                    <img
+    src={logo}   // put logo inside public folder
+    alt="Logo"
+    className="w-50 h-60 object-contain"
+  /> 
                 <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/20 to-transparent" />
               </div>
               <span className="font-bold text-sidebar-foreground text-lg tracking-tight">Spoortx</span>

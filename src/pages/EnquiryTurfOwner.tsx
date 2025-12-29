@@ -4,9 +4,22 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Search, Phone, Mail, MapPin, Trash2, Loader2, AlertCircle } from 'lucide-react';
+import {
+  Search,
+  Phone,
+  Mail,
+  MapPin,
+  Loader2,
+  AlertCircle,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Building2,
+  Calendar,
+  Users,
+  FileText,
+} from 'lucide-react';
 import { toast } from 'sonner';
-import { turfService, TurfOwner } from '@/services/turfService';
 import { format } from 'date-fns';
 import {
   AlertDialog,
@@ -18,28 +31,90 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+
+const BASE_URL = 'https://spoortx.onrender.com/api';
+
+interface TurfOwnerRequest {
+  requestId: number;
+  ownerName: string;
+  mobile: string;
+  email: string;
+  proposedTurfName: string;
+  city: string;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+interface ApiResponse {
+  code: number;
+  status: boolean;
+  message: string;
+  data: {
+    requests: TurfOwnerRequest[];
+    totalRequests: number;
+    pendingRequests: number;
+    approvedRequests: number;
+    rejectedRequests: number;
+  };
+}
 
 const EnquiryTurfOwner = () => {
-  const [owners, setOwners] = useState<TurfOwner[]>([]);
-  const [filteredOwners, setFilteredOwners] = useState<TurfOwner[]>([]);
+  const [requests, setRequests] = useState<TurfOwnerRequest[]>([]);
+  const [filteredRequests, setFilteredRequests] = useState<TurfOwnerRequest[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [ownerToDelete, setOwnerToDelete] = useState<TurfOwner | null>(null);
+  const [stats, setStats] = useState({
+    totalRequests: 0,
+    pendingRequests: 0,
+    approvedRequests: 0,
+    rejectedRequests: 0,
+  });
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [actionDialogOpen, setActionDialogOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<TurfOwnerRequest | null>(null);
+  const [actionType, setActionType] = useState<'approve' | 'reject' | null>(null);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
 
   useEffect(() => {
-    fetchOwners();
+    fetchRequests();
   }, []);
 
-  const fetchOwners = async () => {
+  const fetchRequests = async () => {
     try {
       setIsLoading(true);
-      const ownersData = await turfService.getTurfOwners();
-      setOwners(ownersData);
-      setFilteredOwners(ownersData);
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`${BASE_URL}/admin/turf-owner-requests`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data: ApiResponse = await response.json();
+      setRequests(data.data.requests);
+      setFilteredRequests(data.data.requests);
+      setStats({
+        totalRequests: data.data.totalRequests,
+        pendingRequests: data.data.pendingRequests,
+        approvedRequests: data.data.approvedRequests,
+        rejectedRequests: data.data.rejectedRequests,
+      });
+      toast.success(data.message);
     } catch (error) {
-      console.error('Error fetching turf owners:', error);
-      toast.error('Failed to load turf owners. Please try again.');
+      console.error('Error fetching turf owner requests:', error);
+      toast.error('Failed to load turf owner requests. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -47,44 +122,118 @@ const EnquiryTurfOwner = () => {
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
-    if (!query.trim()) {
-      setFilteredOwners(owners);
-      return;
+    filterRequests(query, statusFilter);
+  };
+
+  const handleStatusFilter = (status: string) => {
+    setStatusFilter(status);
+    filterRequests(searchQuery, status);
+  };
+
+  const filterRequests = (query: string, status: string) => {
+    let filtered = requests;
+
+    // Filter by status
+    if (status !== 'all') {
+      filtered = filtered.filter((req) => req.status.toLowerCase() === status.toLowerCase());
     }
 
-    const lowerQuery = query.toLowerCase();
-    const filtered = owners.filter(
-      (owner) =>
-        owner.name.toLowerCase().includes(lowerQuery) ||
-        owner.email.toLowerCase().includes(lowerQuery) ||
-        owner.mobile.includes(query) ||
-        owner.city.toLowerCase().includes(lowerQuery)
-    );
-    setFilteredOwners(filtered);
+    // Filter by search query
+    if (query.trim()) {
+      const lowerQuery = query.toLowerCase();
+      filtered = filtered.filter(
+        (req) =>
+          req.ownerName.toLowerCase().includes(lowerQuery) ||
+          req.email.toLowerCase().includes(lowerQuery) ||
+          req.mobile.includes(query) ||
+          req.city.toLowerCase().includes(lowerQuery) ||
+          req.proposedTurfName.toLowerCase().includes(lowerQuery)
+      );
+    }
+
+    setFilteredRequests(filtered);
   };
 
-  const handleDeleteClick = (owner: TurfOwner) => {
-    setOwnerToDelete(owner);
-    setDeleteDialogOpen(true);
+  const handleActionClick = (request: TurfOwnerRequest, action: 'approve' | 'reject') => {
+    setSelectedRequest(request);
+    setActionType(action);
+    setActionDialogOpen(true);
   };
 
-  const handleDeleteConfirm = async () => {
-    if (!ownerToDelete) return;
+  const handleActionConfirm = async () => {
+    if (!selectedRequest || !actionType) return;
 
     try {
-      // Note: You'll need to implement the delete API endpoint in turfService
-      // await turfService.deleteTurfOwner(ownerToDelete.userId);
+      // Here you would make the API call to approve/reject
+      // For now, update local state
+      const newStatus = actionType === 'approve' ? 'Approved' : 'Rejected';
 
-      // For now, just remove from local state
-      setOwners(owners.filter((o) => o.userId !== ownerToDelete.userId));
-      setFilteredOwners(filteredOwners.filter((o) => o.userId !== ownerToDelete.userId));
+      setRequests((prev) =>
+        prev.map((req) =>
+          req.requestId === selectedRequest.requestId
+            ? { ...req, status: newStatus as 'Approved' | 'Rejected', updatedAt: new Date().toISOString() }
+            : req
+        )
+      );
 
-      toast.success(`Turf owner "${ownerToDelete.name}" has been deleted`);
-      setDeleteDialogOpen(false);
-      setOwnerToDelete(null);
+      setFilteredRequests((prev) =>
+        prev.map((req) =>
+          req.requestId === selectedRequest.requestId
+            ? { ...req, status: newStatus as 'Approved' | 'Rejected', updatedAt: new Date().toISOString() }
+            : req
+        )
+      );
+
+      // Update stats
+      setStats((prev) => ({
+        ...prev,
+        pendingRequests: prev.pendingRequests - 1,
+        approvedRequests: actionType === 'approve' ? prev.approvedRequests + 1 : prev.approvedRequests,
+        rejectedRequests: actionType === 'reject' ? prev.rejectedRequests + 1 : prev.rejectedRequests,
+      }));
+
+      toast.success(
+        `Request ${actionType === 'approve' ? 'approved' : 'rejected'} for ${selectedRequest.ownerName}`
+      );
+      setActionDialogOpen(false);
+      setSelectedRequest(null);
+      setActionType(null);
     } catch (error) {
-      console.error('Error deleting turf owner:', error);
-      toast.error('Failed to delete turf owner. Please try again.');
+      console.error('Error updating request:', error);
+      toast.error('Failed to update request. Please try again.');
+    }
+  };
+
+  const handleViewDetails = (request: TurfOwnerRequest) => {
+    setSelectedRequest(request);
+    setDetailsDialogOpen(true);
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'pending':
+        return (
+          <Badge className="bg-warning/10 text-warning border-warning/20 gap-1">
+            <Clock className="w-3 h-3" />
+            Pending
+          </Badge>
+        );
+      case 'approved':
+        return (
+          <Badge className="bg-success/10 text-success border-success/20 gap-1">
+            <CheckCircle className="w-3 h-3" />
+            Approved
+          </Badge>
+        );
+      case 'rejected':
+        return (
+          <Badge className="bg-destructive/10 text-destructive border-destructive/20 gap-1">
+            <XCircle className="w-3 h-3" />
+            Rejected
+          </Badge>
+        );
+      default:
+        return <Badge>{status}</Badge>;
     }
   };
 
@@ -93,8 +242,79 @@ const EnquiryTurfOwner = () => {
       <div className="space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Turf Owner Enquiry</h1>
-          <p className="text-muted-foreground">View and manage turf owner information</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Turf Owner Requests</h1>
+          <p className="text-muted-foreground">Manage turf owner registration requests</p>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card
+            className={`p-4 cursor-pointer transition-all hover:shadow-md ${
+              statusFilter === 'all' ? 'ring-2 ring-primary' : ''
+            }`}
+            onClick={() => handleStatusFilter('all')}
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-primary/10 rounded-lg">
+                <FileText className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats.totalRequests}</p>
+                <p className="text-xs text-muted-foreground">Total Requests</p>
+              </div>
+            </div>
+          </Card>
+
+          <Card
+            className={`p-4 cursor-pointer transition-all hover:shadow-md ${
+              statusFilter === 'pending' ? 'ring-2 ring-warning' : ''
+            }`}
+            onClick={() => handleStatusFilter('pending')}
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-warning/10 rounded-lg">
+                <Clock className="w-5 h-5 text-warning" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats.pendingRequests}</p>
+                <p className="text-xs text-muted-foreground">Pending</p>
+              </div>
+            </div>
+          </Card>
+
+          <Card
+            className={`p-4 cursor-pointer transition-all hover:shadow-md ${
+              statusFilter === 'approved' ? 'ring-2 ring-success' : ''
+            }`}
+            onClick={() => handleStatusFilter('approved')}
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-success/10 rounded-lg">
+                <CheckCircle className="w-5 h-5 text-success" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats.approvedRequests}</p>
+                <p className="text-xs text-muted-foreground">Approved</p>
+              </div>
+            </div>
+          </Card>
+
+          <Card
+            className={`p-4 cursor-pointer transition-all hover:shadow-md ${
+              statusFilter === 'rejected' ? 'ring-2 ring-destructive' : ''
+            }`}
+            onClick={() => handleStatusFilter('rejected')}
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-destructive/10 rounded-lg">
+                <XCircle className="w-5 h-5 text-destructive" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats.rejectedRequests}</p>
+                <p className="text-xs text-muted-foreground">Rejected</p>
+              </div>
+            </div>
+          </Card>
         </div>
 
         {/* Search Bar */}
@@ -102,7 +322,7 @@ const EnquiryTurfOwner = () => {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Search by name, email, phone, or city..."
+              placeholder="Search by name, email, phone, city, or turf name..."
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
               className="pl-9"
@@ -117,67 +337,83 @@ const EnquiryTurfOwner = () => {
           </div>
         )}
 
-        {/* Owners List */}
+        {/* Requests List */}
         {!isLoading && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredOwners.map((owner) => (
+            {filteredRequests.map((request) => (
               <Card
-                key={owner.userId}
+                key={request.requestId}
                 className="p-6 hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
               >
                 <div className="space-y-4">
                   {/* Header with Name and Status */}
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <h3 className="text-lg font-bold text-foreground mb-1">{owner.name}</h3>
-                      <Badge
-                        className={
-                          owner.isActive
-                            ? 'bg-success/10 text-success border-success/20'
-                            : 'bg-muted text-muted-foreground border-border'
-                        }
-                      >
-                        {owner.isActive ? 'Active' : 'Inactive'}
-                      </Badge>
+                      <h3 className="text-lg font-bold text-foreground mb-1">{request.ownerName}</h3>
+                      {getStatusBadge(request.status)}
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteClick(owner)}
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <span className="text-xs text-muted-foreground">#{request.requestId}</span>
+                  </div>
+
+                  {/* Proposed Turf Name */}
+                  <div className="p-3 bg-primary/5 rounded-lg border border-primary/10">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Building2 className="w-4 h-4 text-primary" />
+                      <span className="text-muted-foreground">Proposed Turf:</span>
+                    </div>
+                    <p className="font-semibold text-foreground mt-1">{request.proposedTurfName}</p>
                   </div>
 
                   {/* Contact Information */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Mail className="w-4 h-4" />
-                      <span className="text-foreground">{owner.email}</span>
+                      <span className="text-foreground truncate">{request.email}</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Phone className="w-4 h-4" />
-                      <span className="text-foreground">{owner.mobile}</span>
+                      <span className="text-foreground">{request.mobile}</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <MapPin className="w-4 h-4" />
-                      <span className="text-foreground">{owner.city}</span>
+                      <span className="text-foreground">{request.city}</span>
                     </div>
                   </div>
 
-                  {/* Stats */}
-                  <div className="pt-4 border-t">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-muted-foreground">Total Turfs</span>
-                      <span className="text-lg font-bold text-primary">{owner.totalTurfs}</span>
-                    </div>
-                    <div className="flex justify-between items-center mt-2">
-                      <span className="text-xs text-muted-foreground">Member Since</span>
-                      <span className="text-xs font-medium">
-                        {format(new Date(owner.createdAt), 'MMM dd, yyyy')}
-                      </span>
-                    </div>
+                  {/* Date */}
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t">
+                    <Calendar className="w-3 h-3" />
+                    <span>Submitted: {format(new Date(request.createdAt), 'MMM dd, yyyy hh:mm a')}</span>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => handleViewDetails(request)}
+                    >
+                      View Details
+                    </Button>
+                    {request.status === 'Pending' && (
+                      <>
+                        <Button
+                          size="sm"
+                          className="bg-success hover:bg-success/90"
+                          onClick={() => handleActionClick(request, 'approve')}
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleActionClick(request, 'reject')}
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
               </Card>
@@ -186,42 +422,143 @@ const EnquiryTurfOwner = () => {
         )}
 
         {/* Empty State */}
-        {!isLoading && filteredOwners.length === 0 && (
+        {!isLoading && filteredRequests.length === 0 && (
           <Card className="p-12">
             <div className="text-center">
               <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-foreground mb-2">No turf owners found</h3>
+              <h3 className="text-lg font-semibold text-foreground mb-2">No requests found</h3>
               <p className="text-sm text-muted-foreground">
-                {searchQuery
-                  ? 'Try adjusting your search criteria'
-                  : 'No turf owners are registered yet'}
+                {searchQuery || statusFilter !== 'all'
+                  ? 'Try adjusting your search or filter criteria'
+                  : 'No turf owner requests have been submitted yet'}
               </p>
             </div>
           </Card>
         )}
       </div>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      {/* Action Confirmation Dialog */}
+      <AlertDialog open={actionDialogOpen} onOpenChange={setActionDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {actionType === 'approve' ? 'Approve Request?' : 'Reject Request?'}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the turf owner "{ownerToDelete?.name}". This action cannot
-              be undone.
+              {actionType === 'approve'
+                ? `This will approve the turf owner request from "${selectedRequest?.ownerName}" for "${selectedRequest?.proposedTurfName}".`
+                : `This will reject the turf owner request from "${selectedRequest?.ownerName}". This action cannot be undone.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDeleteConfirm}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleActionConfirm}
+              className={
+                actionType === 'approve'
+                  ? 'bg-success text-white hover:bg-success/90'
+                  : 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+              }
             >
-              Delete
+              {actionType === 'approve' ? 'Approve' : 'Reject'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Details Dialog */}
+      <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Request Details</DialogTitle>
+          </DialogHeader>
+          {selectedRequest && (
+            <div className="space-y-4 py-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Request ID</span>
+                <span className="font-mono">#{selectedRequest.requestId}</span>
+              </div>
+
+              <div className="p-4 bg-secondary/50 rounded-lg space-y-3">
+                <div className="flex items-center gap-3">
+                  <Users className="w-5 h-5 text-primary" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Owner Name</p>
+                    <p className="font-semibold">{selectedRequest.ownerName}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Building2 className="w-5 h-5 text-primary" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Proposed Turf Name</p>
+                    <p className="font-semibold">{selectedRequest.proposedTurfName}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between py-2 border-b">
+                  <span className="text-sm text-muted-foreground">Email</span>
+                  <span className="text-sm">{selectedRequest.email}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b">
+                  <span className="text-sm text-muted-foreground">Mobile</span>
+                  <span className="text-sm">{selectedRequest.mobile}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b">
+                  <span className="text-sm text-muted-foreground">City</span>
+                  <span className="text-sm">{selectedRequest.city}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b">
+                  <span className="text-sm text-muted-foreground">Status</span>
+                  {getStatusBadge(selectedRequest.status)}
+                </div>
+                <div className="flex justify-between py-2 border-b">
+                  <span className="text-sm text-muted-foreground">Submitted On</span>
+                  <span className="text-sm">
+                    {format(new Date(selectedRequest.createdAt), 'MMM dd, yyyy hh:mm a')}
+                  </span>
+                </div>
+                {selectedRequest.updatedAt && (
+                  <div className="flex justify-between py-2">
+                    <span className="text-sm text-muted-foreground">Last Updated</span>
+                    <span className="text-sm">
+                      {format(new Date(selectedRequest.updatedAt), 'MMM dd, yyyy hh:mm a')}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {selectedRequest.status === 'Pending' && (
+                <div className="flex gap-2 pt-4">
+                  <Button
+                    className="flex-1 bg-success hover:bg-success/90 gap-2"
+                    onClick={() => {
+                      setDetailsDialogOpen(false);
+                      handleActionClick(selectedRequest, 'approve');
+                    }}
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    Approve
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    className="flex-1 gap-2"
+                    onClick={() => {
+                      setDetailsDialogOpen(false);
+                      handleActionClick(selectedRequest, 'reject');
+                    }}
+                  >
+                    <XCircle className="w-4 h-4" />
+                    Reject
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };
