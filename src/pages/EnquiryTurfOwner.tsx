@@ -4,6 +4,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Search,
   Phone,
@@ -36,6 +38,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from '@/components/ui/dialog';
 
 const BASE_URL = 'https://spoortx.onrender.com/api';
@@ -69,6 +72,7 @@ const EnquiryTurfOwner = () => {
   const [requests, setRequests] = useState<TurfOwnerRequest[]>([]);
   const [filteredRequests, setFilteredRequests] = useState<TurfOwnerRequest[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [stats, setStats] = useState({
     totalRequests: 0,
@@ -77,10 +81,19 @@ const EnquiryTurfOwner = () => {
     rejectedRequests: 0,
   });
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [actionDialogOpen, setActionDialogOpen] = useState(false);
+  const [approveDialogOpen, setApproveDialogOpen] = useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<TurfOwnerRequest | null>(null);
-  const [actionType, setActionType] = useState<'approve' | 'reject' | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('authToken');
+    return {
+      'Content-Type': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` }),
+    };
+  };
 
   useEffect(() => {
     fetchRequests();
@@ -89,13 +102,9 @@ const EnquiryTurfOwner = () => {
   const fetchRequests = async () => {
     try {
       setIsLoading(true);
-      const token = localStorage.getItem('authToken');
       const response = await fetch(`${BASE_URL}/admin/turf-owner-requests`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
+        headers: getAuthHeaders(),
       });
 
       if (!response.ok) {
@@ -154,24 +163,45 @@ const EnquiryTurfOwner = () => {
     setFilteredRequests(filtered);
   };
 
-  const handleActionClick = (request: TurfOwnerRequest, action: 'approve' | 'reject') => {
+  const handleApproveClick = (request: TurfOwnerRequest) => {
     setSelectedRequest(request);
-    setActionType(action);
-    setActionDialogOpen(true);
+    setApproveDialogOpen(true);
   };
 
-  const handleActionConfirm = async () => {
-    if (!selectedRequest || !actionType) return;
+  const handleRejectClick = (request: TurfOwnerRequest) => {
+    setSelectedRequest(request);
+    setRejectionReason('');
+    setRejectDialogOpen(true);
+  };
+
+  const handleApproveConfirm = async () => {
+    if (!selectedRequest) return;
 
     try {
-      // Here you would make the API call to approve/reject
-      // For now, update local state
-      const newStatus = actionType === 'approve' ? 'Approved' : 'Rejected';
+      setIsProcessing(true);
 
+      const response = await fetch(
+        `${BASE_URL}/admin/turf-owner-requests/${selectedRequest.requestId}/approve`,
+        {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            adminId: 1, // You can get this from logged in admin context
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      await response.json();
+
+      // Update local state
       setRequests((prev) =>
         prev.map((req) =>
           req.requestId === selectedRequest.requestId
-            ? { ...req, status: newStatus as 'Approved' | 'Rejected', updatedAt: new Date().toISOString() }
+            ? { ...req, status: 'Approved' as const, updatedAt: new Date().toISOString() }
             : req
         )
       );
@@ -179,7 +209,7 @@ const EnquiryTurfOwner = () => {
       setFilteredRequests((prev) =>
         prev.map((req) =>
           req.requestId === selectedRequest.requestId
-            ? { ...req, status: newStatus as 'Approved' | 'Rejected', updatedAt: new Date().toISOString() }
+            ? { ...req, status: 'Approved' as const, updatedAt: new Date().toISOString() }
             : req
         )
       );
@@ -188,19 +218,81 @@ const EnquiryTurfOwner = () => {
       setStats((prev) => ({
         ...prev,
         pendingRequests: prev.pendingRequests - 1,
-        approvedRequests: actionType === 'approve' ? prev.approvedRequests + 1 : prev.approvedRequests,
-        rejectedRequests: actionType === 'reject' ? prev.rejectedRequests + 1 : prev.rejectedRequests,
+        approvedRequests: prev.approvedRequests + 1,
       }));
 
-      toast.success(
-        `Request ${actionType === 'approve' ? 'approved' : 'rejected'} for ${selectedRequest.ownerName}`
-      );
-      setActionDialogOpen(false);
+      toast.success(`Request approved for ${selectedRequest.ownerName}`);
+      setApproveDialogOpen(false);
       setSelectedRequest(null);
-      setActionType(null);
     } catch (error) {
-      console.error('Error updating request:', error);
-      toast.error('Failed to update request. Please try again.');
+      console.error('Error approving request:', error);
+      toast.error('Failed to approve request. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleRejectConfirm = async () => {
+    if (!selectedRequest) return;
+
+    if (!rejectionReason.trim()) {
+      toast.error('Please provide a rejection reason');
+      return;
+    }
+
+    try {
+      setIsProcessing(true);
+
+      const response = await fetch(
+        `${BASE_URL}/admin/turf-owner-requests/${selectedRequest.requestId}/reject`,
+        {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            rejectionReason: rejectionReason.trim(),
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      await response.json();
+
+      // Update local state
+      setRequests((prev) =>
+        prev.map((req) =>
+          req.requestId === selectedRequest.requestId
+            ? { ...req, status: 'Rejected' as const, updatedAt: new Date().toISOString() }
+            : req
+        )
+      );
+
+      setFilteredRequests((prev) =>
+        prev.map((req) =>
+          req.requestId === selectedRequest.requestId
+            ? { ...req, status: 'Rejected' as const, updatedAt: new Date().toISOString() }
+            : req
+        )
+      );
+
+      // Update stats
+      setStats((prev) => ({
+        ...prev,
+        pendingRequests: prev.pendingRequests - 1,
+        rejectedRequests: prev.rejectedRequests + 1,
+      }));
+
+      toast.success(`Request rejected for ${selectedRequest.ownerName}`);
+      setRejectDialogOpen(false);
+      setSelectedRequest(null);
+      setRejectionReason('');
+    } catch (error) {
+      console.error('Error rejecting request:', error);
+      toast.error('Failed to reject request. Please try again.');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -401,14 +493,14 @@ const EnquiryTurfOwner = () => {
                         <Button
                           size="sm"
                           className="bg-success hover:bg-success/90"
-                          onClick={() => handleActionClick(request, 'approve')}
+                          onClick={() => handleApproveClick(request)}
                         >
                           <CheckCircle className="w-4 h-4" />
                         </Button>
                         <Button
                           size="sm"
                           variant="destructive"
-                          onClick={() => handleActionClick(request, 'reject')}
+                          onClick={() => handleRejectClick(request)}
                         >
                           <XCircle className="w-4 h-4" />
                         </Button>
@@ -437,34 +529,92 @@ const EnquiryTurfOwner = () => {
         )}
       </div>
 
-      {/* Action Confirmation Dialog */}
-      <AlertDialog open={actionDialogOpen} onOpenChange={setActionDialogOpen}>
+      {/* Approve Confirmation Dialog */}
+      <AlertDialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {actionType === 'approve' ? 'Approve Request?' : 'Reject Request?'}
-            </AlertDialogTitle>
+            <AlertDialogTitle>Approve Request?</AlertDialogTitle>
             <AlertDialogDescription>
-              {actionType === 'approve'
-                ? `This will approve the turf owner request from "${selectedRequest?.ownerName}" for "${selectedRequest?.proposedTurfName}".`
-                : `This will reject the turf owner request from "${selectedRequest?.ownerName}". This action cannot be undone.`}
+              This will approve the turf owner request from "{selectedRequest?.ownerName}" for "
+              {selectedRequest?.proposedTurfName}". The owner will be notified and can start setting
+              up their turf.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isProcessing}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleActionConfirm}
-              className={
-                actionType === 'approve'
-                  ? 'bg-success text-white hover:bg-success/90'
-                  : 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
-              }
+              onClick={handleApproveConfirm}
+              className="bg-success text-white hover:bg-success/90"
+              disabled={isProcessing}
             >
-              {actionType === 'approve' ? 'Approve' : 'Reject'}
+              {isProcessing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Approving...
+                </>
+              ) : (
+                'Approve'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Reject Dialog with Reason */}
+      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Reject Request</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="p-4 bg-destructive/10 rounded-lg border border-destructive/20">
+              <p className="text-sm text-muted-foreground">
+                You are about to reject the request from:
+              </p>
+              <p className="font-semibold mt-1">{selectedRequest?.ownerName}</p>
+              <p className="text-sm text-muted-foreground">
+                Turf: {selectedRequest?.proposedTurfName}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="rejectionReason">Rejection Reason *</Label>
+              <Textarea
+                id="rejectionReason"
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="Please provide a reason for rejection (e.g., Incomplete information provided, Invalid documents, etc.)"
+                rows={4}
+              />
+              <p className="text-xs text-muted-foreground">
+                This reason will be sent to the turf owner.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectDialogOpen(false)} disabled={isProcessing}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleRejectConfirm}
+              disabled={isProcessing || !rejectionReason.trim()}
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Rejecting...
+                </>
+              ) : (
+                <>
+                  <XCircle className="w-4 h-4 mr-2" />
+                  Reject Request
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Details Dialog */}
       <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
@@ -536,7 +686,7 @@ const EnquiryTurfOwner = () => {
                     className="flex-1 bg-success hover:bg-success/90 gap-2"
                     onClick={() => {
                       setDetailsDialogOpen(false);
-                      handleActionClick(selectedRequest, 'approve');
+                      handleApproveClick(selectedRequest);
                     }}
                   >
                     <CheckCircle className="w-4 h-4" />
@@ -547,7 +697,7 @@ const EnquiryTurfOwner = () => {
                     className="flex-1 gap-2"
                     onClick={() => {
                       setDetailsDialogOpen(false);
-                      handleActionClick(selectedRequest, 'reject');
+                      handleRejectClick(selectedRequest);
                     }}
                   >
                     <XCircle className="w-4 h-4" />

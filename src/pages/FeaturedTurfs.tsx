@@ -5,7 +5,6 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -17,9 +16,10 @@ import { turfService, ApiTurf } from '@/services/turfService';
 interface FeaturedTurf {
   id?: number;
   turfId: number;
+  turfName?: string;
   priority: number;
-  fromDate: string;
-  toDate: string;
+  startDate: string;
+  endDate: string;
   isActive: boolean;
 }
 
@@ -35,21 +35,22 @@ const FeaturedTurfs = () => {
   const [selectedTurf, setSelectedTurf] = useState<ApiTurf | null>(null);
   const [editingFeatured, setEditingFeatured] = useState<FeaturedTurf | null>(null);
   const [newFeatured, setNewFeatured] = useState({
-    priority: '1',
-    fromDate: '',
-    toDate: '',
+    priority: '',
+    startDate: '',
+    endDate: '',
     isActive: true,
   });
   const [editForm, setEditForm] = useState({
-    priority: '1',
-    fromDate: '',
-    toDate: '',
+    priority: '',
+    startDate: '',
+    endDate: '',
     isActive: true,
   });
 
-  // Fetch all turfs on component mount
+  // Fetch all turfs and featured turfs on component mount
   useEffect(() => {
     fetchTurfs();
+    fetchFeaturedTurfs();
   }, []);
 
   const fetchTurfs = async () => {
@@ -57,12 +58,32 @@ const FeaturedTurfs = () => {
       setLoading(true);
       const turfs = await turfService.getTurfs();
       setAllTurfs(turfs);
-      toast.success('Turfs loaded successfully');
     } catch (error) {
       console.error('Error fetching turfs:', error);
       toast.error('Failed to load turfs');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchFeaturedTurfs = async () => {
+    try {
+      const response = await fetch(`${BASE_URL}/admin/featured-turfs`, {
+        method: 'GET',
+        headers: getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      if (result.success && result.data) {
+        setFeaturedTurfs(result.data);
+      }
+    } catch (error) {
+      console.error('Error fetching featured turfs:', error);
+      toast.error('Failed to load featured turfs');
     }
   };
 
@@ -94,17 +115,23 @@ const FeaturedTurfs = () => {
   };
 
   const handleAddFeatured = async () => {
-    if (!selectedTurf || !newFeatured.fromDate || !newFeatured.toDate || !newFeatured.priority) {
-      toast.error('Please select a turf, priority level, and fill all date fields');
+    if (!selectedTurf || !newFeatured.startDate || !newFeatured.endDate || !newFeatured.priority) {
+      toast.error('Please select a turf, priority, and fill all date fields');
+      return;
+    }
+
+    const priorityNum = parseInt(newFeatured.priority);
+    if (isNaN(priorityNum) || priorityNum < 1) {
+      toast.error('Priority must be at least 1');
       return;
     }
 
     try {
       const payload = {
         turfId: selectedTurf.turfId,
-        priority: parseInt(newFeatured.priority),
-        fromDate: new Date(newFeatured.fromDate).toISOString(),
-        toDate: new Date(newFeatured.toDate).toISOString(),
+        priority: priorityNum,
+        startDate: new Date(newFeatured.startDate).toISOString(),
+        endDate: new Date(newFeatured.endDate).toISOString(),
         isActive: newFeatured.isActive,
       };
 
@@ -131,7 +158,7 @@ const FeaturedTurfs = () => {
       setDialogOpen(false);
       setSelectedTurf(null);
       setSearchQuery('');
-      setNewFeatured({ priority: '1', fromDate: '', toDate: '', isActive: true });
+      setNewFeatured({ priority: '', startDate: '', endDate: '', isActive: true });
     } catch (error) {
       console.error('Error adding featured turf:', error);
       toast.error('Failed to add featured turf');
@@ -139,17 +166,23 @@ const FeaturedTurfs = () => {
   };
 
   const handleUpdateFeatured = async () => {
-    if (!editingFeatured || !editForm.fromDate || !editForm.toDate) {
+    if (!editingFeatured || !editForm.startDate || !editForm.endDate || !editForm.priority) {
       toast.error('Please fill all required fields');
+      return;
+    }
+
+    const priorityNum = parseInt(editForm.priority);
+    if (isNaN(priorityNum) || priorityNum < 1) {
+      toast.error('Priority must be at least 1');
       return;
     }
 
     try {
       const payload = {
         turfId: editingFeatured.turfId,
-        priority: parseInt(editForm.priority),
-        fromDate: new Date(editForm.fromDate).toISOString(),
-        toDate: new Date(editForm.toDate).toISOString(),
+        priority: priorityNum,
+        startDate: new Date(editForm.startDate).toISOString(),
+        endDate: new Date(editForm.endDate).toISOString(),
         isActive: editForm.isActive,
       };
 
@@ -188,8 +221,8 @@ const FeaturedTurfs = () => {
       const payload = {
         turfId: featured.turfId,
         priority: featured.priority,
-        fromDate: featured.fromDate,
-        toDate: featured.toDate,
+        startDate: featured.startDate,
+        endDate: featured.endDate,
         isActive: !featured.isActive,
       };
 
@@ -244,8 +277,8 @@ const FeaturedTurfs = () => {
     setEditingFeatured(featured);
     setEditForm({
       priority: featured.priority.toString(),
-      fromDate: featured.fromDate.split('T')[0],
-      toDate: featured.toDate.split('T')[0],
+      startDate: featured.startDate.split('T')[0],
+      endDate: featured.endDate.split('T')[0],
       isActive: featured.isActive,
     });
     setEditDialogOpen(true);
@@ -355,45 +388,38 @@ const FeaturedTurfs = () => {
                   )}
                 </div>
 
-                {/* Priority Level */}
+                {/* Priority - Number Input */}
                 <div className="space-y-2">
-                  <Label htmlFor="priority">Priority Level *</Label>
-                  <Select
+                  <Label htmlFor="priority">Priority *</Label>
+                  <Input
+                    id="priority"
+                    type="number"
+                    min={1}
                     value={newFeatured.priority}
-                    onValueChange={(value) => setNewFeatured({ ...newFeatured, priority: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select priority level" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">Priority 1 (Highest)</SelectItem>
-                      <SelectItem value="2">Priority 2</SelectItem>
-                      <SelectItem value="3">Priority 3</SelectItem>
-                      <SelectItem value="4">Priority 4</SelectItem>
-                      <SelectItem value="5">Priority 5</SelectItem>
-                      <SelectItem value="6">Priority 6 (Lowest)</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    onChange={(e) => setNewFeatured({ ...newFeatured, priority: e.target.value })}
+                    placeholder="Enter priority (e.g., 1, 2, 3...)"
+                  />
+                  <p className="text-xs text-muted-foreground">Lower number = Higher priority</p>
                 </div>
 
                 {/* Date Range */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="fromDate">From Date *</Label>
+                    <Label htmlFor="startDate">Start Date *</Label>
                     <Input
-                      id="fromDate"
+                      id="startDate"
                       type="date"
-                      value={newFeatured.fromDate}
-                      onChange={(e) => setNewFeatured({ ...newFeatured, fromDate: e.target.value })}
+                      value={newFeatured.startDate}
+                      onChange={(e) => setNewFeatured({ ...newFeatured, startDate: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="toDate">To Date *</Label>
+                    <Label htmlFor="endDate">End Date *</Label>
                     <Input
-                      id="toDate"
+                      id="endDate"
                       type="date"
-                      value={newFeatured.toDate}
-                      onChange={(e) => setNewFeatured({ ...newFeatured, toDate: e.target.value })}
+                      value={newFeatured.endDate}
+                      onChange={(e) => setNewFeatured({ ...newFeatured, endDate: e.target.value })}
                     />
                   </div>
                 </div>
@@ -436,7 +462,7 @@ const FeaturedTurfs = () => {
           <div className="space-y-6">
             {featuredTurfs.map((featured) => {
               const turf = getTurfDetails(featured.turfId);
-              if (!turf) return null;
+              const turfName = turf?.turfName || featured.turfName || `Turf #${featured.turfId}`;
 
               return (
                 <Card
@@ -448,8 +474,8 @@ const FeaturedTurfs = () => {
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-6">
                     {/* Photo Carousel */}
                     <div className="lg:col-span-4 relative">
-                      {turf.images && turf.images.length > 0 ? (
-                        <PhotoCarousel images={turf.images} alt={turf.turfName} />
+                      {turf?.images && turf.images.length > 0 ? (
+                        <PhotoCarousel images={turf.images} alt={turfName} />
                       ) : (
                         <div className="w-full h-48 bg-secondary rounded-lg flex items-center justify-center">
                           <span className="text-muted-foreground">No images</span>
@@ -472,7 +498,7 @@ const FeaturedTurfs = () => {
                         <div className="flex items-start justify-between mb-2">
                           <div>
                             <div className="flex items-center gap-2 mb-1">
-                              <h3 className="text-xl font-bold text-foreground">{turf.turfName}</h3>
+                              <h3 className="text-xl font-bold text-foreground">{turfName}</h3>
                               <Badge className={featured.isActive ? 'bg-success/20 text-success border-success/40' : 'bg-muted text-muted-foreground'}>
                                 Priority {featured.priority}
                               </Badge>
@@ -480,29 +506,37 @@ const FeaturedTurfs = () => {
                                 {featured.isActive ? 'Active' : 'Inactive'}
                               </Badge>
                             </div>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <MapPin className="w-4 h-4" />
-                              <span>{turf.city}</span>
-                            </div>
+                            {turf?.city && (
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <MapPin className="w-4 h-4" />
+                                <span>{turf.city}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
-                        <p className="text-sm text-muted-foreground line-clamp-2">{turf.description}</p>
+                        {turf?.description && (
+                          <p className="text-sm text-muted-foreground line-clamp-2">{turf.description}</p>
+                        )}
                       </div>
 
                       {/* Sports Tags */}
-                      <div className="flex flex-wrap gap-2">
-                        {turf.sports.map((sport) => (
-                          <Badge key={sport.sportId} variant="outline" className="bg-secondary/50">
-                            {sport.sportName}
-                          </Badge>
-                        ))}
-                      </div>
+                      {turf?.sports && turf.sports.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {turf.sports.map((sport) => (
+                            <Badge key={sport.sportId} variant="outline" className="bg-secondary/50">
+                              {sport.sportName}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
 
                       {/* Owner Info */}
-                      <div className="p-4 bg-gradient-to-br from-secondary/50 to-secondary/20 rounded-xl border border-border/50">
-                        <p className="text-xs text-muted-foreground mb-1">Owner</p>
-                        <p className="font-semibold">{turf.ownerName}</p>
-                      </div>
+                      {turf?.ownerName && (
+                        <div className="p-4 bg-gradient-to-br from-secondary/50 to-secondary/20 rounded-xl border border-border/50">
+                          <p className="text-xs text-muted-foreground mb-1">Owner</p>
+                          <p className="font-semibold">{turf.ownerName}</p>
+                        </div>
+                      )}
                     </div>
 
                     {/* Featured Details & Actions */}
@@ -514,7 +548,7 @@ const FeaturedTurfs = () => {
                         </div>
                         <div className="text-xs text-muted-foreground space-y-2">
                           <div className="flex items-center justify-between">
-                            <span className="font-semibold text-foreground">Priority Level:</span>
+                            <span className="font-semibold text-foreground">Priority:</span>
                             <Badge variant="outline">{featured.priority}</Badge>
                           </div>
                           <div className="flex items-center justify-between">
@@ -524,23 +558,25 @@ const FeaturedTurfs = () => {
                             </Badge>
                           </div>
                           <div className="pt-2 border-t space-y-1">
-                            <p>From: {new Date(featured.fromDate).toLocaleDateString()}</p>
-                            <p>To: {new Date(featured.toDate).toLocaleDateString()}</p>
+                            <p>Start: {new Date(featured.startDate).toLocaleDateString()}</p>
+                            <p>End: {new Date(featured.endDate).toLocaleDateString()}</p>
                           </div>
                         </div>
                       </div>
 
-                      <div className="p-4 bg-secondary/50 rounded-xl">
-                        <p className="text-xs text-muted-foreground mb-2">Pricing</p>
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs">Price/Hour</span>
-                            <span className="font-semibold text-sm text-success">
-                              ₹{turf.pricePerHour}
-                            </span>
+                      {turf?.pricePerHour && (
+                        <div className="p-4 bg-secondary/50 rounded-xl">
+                          <p className="text-xs text-muted-foreground mb-2">Pricing</p>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs">Price/Hour</span>
+                              <span className="font-semibold text-sm text-success">
+                                ₹{turf.pricePerHour}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      )}
 
                       <div className="space-y-2">
                         {/* Edit Button */}
@@ -595,49 +631,45 @@ const FeaturedTurfs = () => {
             <div className="space-y-4 py-4">
               {/* Turf Info */}
               <div className="p-4 bg-secondary/50 rounded-lg">
-                <p className="font-semibold">{getTurfDetails(editingFeatured.turfId)?.turfName}</p>
-                <p className="text-sm text-muted-foreground">
-                  {getTurfDetails(editingFeatured.turfId)?.city}
+                <p className="font-semibold">
+                  {getTurfDetails(editingFeatured.turfId)?.turfName || editingFeatured.turfName || `Turf #${editingFeatured.turfId}`}
                 </p>
+                {getTurfDetails(editingFeatured.turfId)?.city && (
+                  <p className="text-sm text-muted-foreground">
+                    {getTurfDetails(editingFeatured.turfId)?.city}
+                  </p>
+                )}
               </div>
 
-              {/* Priority Level */}
+              {/* Priority - Number Input */}
               <div className="space-y-2">
-                <Label>Priority Level *</Label>
-                <Select
+                <Label>Priority *</Label>
+                <Input
+                  type="number"
+                  min={1}
                   value={editForm.priority}
-                  onValueChange={(value) => setEditForm({ ...editForm, priority: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select priority level" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">Priority 1 (Highest)</SelectItem>
-                    <SelectItem value="2">Priority 2</SelectItem>
-                    <SelectItem value="3">Priority 3</SelectItem>
-                    <SelectItem value="4">Priority 4</SelectItem>
-                    <SelectItem value="5">Priority 5</SelectItem>
-                    <SelectItem value="6">Priority 6 (Lowest)</SelectItem>
-                  </SelectContent>
-                </Select>
+                  onChange={(e) => setEditForm({ ...editForm, priority: e.target.value })}
+                  placeholder="Enter priority (e.g., 1, 2, 3...)"
+                />
+                <p className="text-xs text-muted-foreground">Lower number = Higher priority</p>
               </div>
 
               {/* Date Range */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>From Date *</Label>
+                  <Label>Start Date *</Label>
                   <Input
                     type="date"
-                    value={editForm.fromDate}
-                    onChange={(e) => setEditForm({ ...editForm, fromDate: e.target.value })}
+                    value={editForm.startDate}
+                    onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>To Date *</Label>
+                  <Label>End Date *</Label>
                   <Input
                     type="date"
-                    value={editForm.toDate}
-                    onChange={(e) => setEditForm({ ...editForm, toDate: e.target.value })}
+                    value={editForm.endDate}
+                    onChange={(e) => setEditForm({ ...editForm, endDate: e.target.value })}
                   />
                 </div>
               </div>
